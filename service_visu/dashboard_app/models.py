@@ -9,7 +9,7 @@ class Dashboard(models.Model):
     share_token permet le partage public sans compte.
     """
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    dataset_id  = models.UUIDField()
+    dataset_id  = models.CharField(max_length=255)
     dataset_nom = models.CharField(max_length=255)
     titre       = models.CharField(max_length=255, default='Mon dashboard')
     share_token = models.UUIDField(default=uuid.uuid4, unique=True)

@@ -227,8 +227,8 @@ class IndependanceView(APIView):
 # ══════════════════════════════════════════════════
 class SelecteurView(APIView):
     """
-    Assistant qui recommande le test statistique adapté
-    selon le type de variable, le nombre de groupes et la normalité.
+    Auto-sélection : reçoit dataset_id + colonne (+ col_groupe optionnel),
+    dérive automatiquement type_variable / nb_groupes / normalité.
     """
 
     def post(self, request):
@@ -236,14 +236,50 @@ class SelecteurView(APIView):
         if not ser.is_valid():
             return _err("Paramètres invalides.", details=ser.errors)
 
+        dataset_id = str(ser.validated_data['dataset_id'])
+        colonne    = ser.validated_data['colonne']
+        col_groupe = ser.validated_data.get('col_groupe', '')
+
+        try:
+            df = get_dataset_data(dataset_id)
+        except Exception as e:
+            return _err(f"Impossible de récupérer les données : {e}", code=502)
+
+        if colonne not in df.columns:
+            return _err(f"Colonne '{colonne}' introuvable dans le dataset.")
+
+        serie = df[colonne].dropna()
+
+        # Dériver type_variable
+        type_variable = 'quantitative' if pd.api.types.is_numeric_dtype(serie) else 'qualitative'
+
+        # Dériver nb_groupes
+        nb_groupes = 2
+        if col_groupe and col_groupe in df.columns:
+            nb_groupes = int(df[col_groupe].nunique())
+
+        # Dériver normalité (Shapiro si n ≤ 5000, sinon supposer non-normale)
+        normal = False
+        if type_variable == 'quantitative' and len(serie) >= 3:
+            try:
+                from scipy import stats as sp
+                sample = serie if len(serie) <= 5000 else serie.sample(5000, random_state=42)
+                _, p = sp.shapiro(sample)
+                normal = bool(p > 0.05)
+            except Exception:
+                normal = False
+
         recommandation = selectionner_test(
-            type_variable=ser.validated_data['type_variable'],
-            nb_groupes=ser.validated_data['nb_groupes'],
-            apparie=ser.validated_data['apparie'],
-            normal=ser.validated_data['normal'],
+            type_variable=type_variable,
+            nb_groupes=nb_groupes,
+            apparie=False,
+            normal=normal,
         )
 
         return _ok({
-            'parametres':      ser.validated_data,
-            'recommandation':  recommandation,
+            'colonne':       colonne,
+            'type_variable': type_variable,
+            'nb_groupes':    nb_groupes,
+            'normal':        normal,
+            **recommandation,   # aplatit test_recommande, nom, alternatives, etc.
         })

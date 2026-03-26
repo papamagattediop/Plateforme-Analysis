@@ -181,7 +181,12 @@ async function chargerColonnes() {
     remplirSelect('col-valeur', nums.length ? nums : cols);
     showToast(`${cols.length} colonnes chargées.`, 'success');
   } catch(e) {
-    showToast('Erreur : ' + e.message, 'error');
+    try {
+      document.cookie = 'active_dataset_id=; path=/; max-age=0';
+      document.cookie = 'active_dataset_nom=; path=/; max-age=0';
+      document.getElementById('dataset-id').value = '';
+    } catch {}
+    showToast('Dataset introuvable — sélectionnez-en un dans Import.', 'error');
   }
 }
 
@@ -340,7 +345,16 @@ function afficherResultat(data, type) {
 
 document.addEventListener('DOMContentLoaded', function() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('dataset_id')) document.getElementById('dataset-id').value = params.get('dataset_id');
+  const id = params.get('dataset_id') || (typeof getActiveDatasetId === 'function' ? getActiveDatasetId() : '');
+  if (id) {
+    document.getElementById('dataset-id').value = id;
+    chargerColonnes();
+    try {
+      const nom = getActiveDatasetNom();
+      const chip = document.getElementById('sidebar-ds-name');
+      if (chip && nom) chip.textContent = nom;
+    } catch {}
+  }
 });
 </script>
 {% endblock %}

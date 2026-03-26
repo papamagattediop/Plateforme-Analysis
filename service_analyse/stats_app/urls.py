@@ -7,6 +7,7 @@ urlpatterns = [
 
     # Univarié quantitatif
     path('univariee/', views.univariee),
+    path('univarie/',  views.univariee),   # alias frontend
     path('ic/', views.ic),
     path('normalite/', views.normalite),
     path('histogramme/', views.histogramme),
@@ -16,6 +17,7 @@ urlpatterns = [
     path('frequences/', views.frequences),
 
     # Numérique × Numérique
+    path('bivariee/',    views.correlation_bi),   # alias frontend
     path('correlation/', views.correlation_bi),
     path('regression/', views.regression),
     path('regression-poly/', views.regression_poly),
@@ -26,6 +28,7 @@ urlpatterns = [
     path('contingence/', views.contingence),
 
     # Catégoriel × Numérique
+    path('groupes/',        views.groupes),       # alias frontend
     path('stats-groupees/', views.stats_groupees),
     path('anova/', views.anova),
     path('ttest/', views.ttest),

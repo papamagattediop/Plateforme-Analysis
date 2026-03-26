@@ -24,11 +24,11 @@ class ServiceImportClient:
                 timeout=TIMEOUT,
             )
             r.raise_for_status()
-            return r.json()
+            return r.json().get('data', {})
         except requests.RequestException as e:
             raise ImportClientError(f'service_import inaccessible : {e}')
 
-    def get_colonnes(self, dataset_id: str) -> dict:
+    def get_colonnes(self, dataset_id: str) -> list:
         """
         Types de colonnes détectés — endpoint clé pour savoir
         quelles colonnes sont quantitatives, qualitatives, datetime...
@@ -39,7 +39,7 @@ class ServiceImportClient:
                 timeout=TIMEOUT,
             )
             r.raise_for_status()
-            return r.json()
+            return r.json().get('data', [])
         except requests.RequestException as e:
             raise ImportClientError(f'service_import inaccessible : {e}')
 
@@ -61,7 +61,7 @@ class ServiceImportClient:
                 timeout=TIMEOUT,
             )
             r.raise_for_status()
-            return r.json()
+            return r.json().get('data', {})
         except requests.RequestException as e:
             raise ImportClientError(f'service_import inaccessible : {e}')
 
@@ -98,7 +98,7 @@ class ServiceImportClient:
                 timeout=TIMEOUT,
             )
             r.raise_for_status()
-            return r.json()
+            return r.json().get('data', {})
         except requests.RequestException as e:
             raise ImportClientError(f'service_import inaccessible : {e}')
 
@@ -110,7 +110,7 @@ class ServiceImportClient:
                 timeout=TIMEOUT,
             )
             r.raise_for_status()
-            return r.json()
+            return r.json().get('data', {})
         except requests.RequestException as e:
             raise ImportClientError(f'service_import inaccessible : {e}')
 

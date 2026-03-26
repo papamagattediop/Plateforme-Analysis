@@ -138,7 +138,7 @@ def _config_line(df, variable_x, variable_y, titre):
 def _config_pie(df, variable_x, variable_y, titre):
     if variable_y and variable_y in df.columns:
         df[variable_y] = pd.to_numeric(df[variable_y], errors='coerce')
-        agg = df.groupby(variable_x)[variable_y].sum().reset_index()
+        agg = df.groupby(variable_x, as_index=False)[variable_y].sum()
         labels  = agg[variable_x].astype(str).tolist()
         valeurs = [round(float(v), 2) for v in agg[variable_y]]
     else:

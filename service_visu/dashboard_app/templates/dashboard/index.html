@@ -25,7 +25,7 @@
 <div class="page-header animate-in">
   <h1 class="page-title">Dashboard builder</h1>
   <p class="page-desc">
-    {% if dataset %}Construisez des visualisations pour <strong>{{ dataset.nom }}</strong>
+    {% if dataset %}Construisez des visualisations pour <strong>{{ dataset.nom_fichier }}</strong>
     {% else %}Créez des tableaux de bord interactifs depuis vos données{% endif %}
   </p>
 </div>
@@ -79,7 +79,7 @@
           <select id="sel-x" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              <option value="{{ col.nom }}" data-type="{{ col.type_detecte }}">{{ col.nom }}</option>
+              <option value="{{ col.nom }}" data-type="{{ col.type }}">{{ col.nom }} ({{ col.type }})</option>
             {% endfor %}
           </select>
         </div>
@@ -90,7 +90,7 @@
           <select id="sel-y" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type_detecte == 'quantitative_continue' or col.type_detecte == 'quantitative_discrete' %}
+              {% if col.type == 'numeric' %}
                 <option value="{{ col.nom }}">{{ col.nom }}</option>
               {% endif %}
             {% endfor %}
@@ -337,7 +337,7 @@ async function sauvegarderDashboard() {
   try {
     const dash = await apiPost('/api/v1/dashboards/', {
       dataset_id: DATASET_ID,
-      dataset_nom: '{{ dataset.nom|default:"" }}',
+      dataset_nom: '{{ dataset.nom_fichier|default:"" }}',
       titre,
     });
     dashboardId = dash.id;
@@ -364,5 +364,11 @@ function _getFiltres() {
   const val = document.getElementById('inp-filtre-val').value;
   return col && val ? { [col]: val } : {};
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  const nom = '{{ dataset.nom_fichier|default:"" }}' || getActiveDatasetNom();
+  const chip = document.getElementById('sidebar-ds-name');
+  if (chip && nom) chip.textContent = nom;
+});
 </script>
 {% endblock %}

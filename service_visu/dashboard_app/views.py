@@ -233,15 +233,14 @@ def dashboard_index(request):
     GET /dashboard/
     Page principale — builder + liste des dashboards.
     """
-    dataset_id = request.GET.get('dataset_id')
+    dataset_id = request.GET.get('dataset_id') or request.COOKIES.get('active_dataset_id')
     colonnes   = []
     dataset    = None
 
     if dataset_id:
         try:
-            dataset = import_client.get_dataset(dataset_id)
-            data    = import_client.get_colonnes(dataset_id)
-            colonnes = data.get('colonnes', [])
+            dataset  = import_client.get_dataset(dataset_id)
+            colonnes = import_client.get_colonnes(dataset_id)
         except ImportClientError:
             pass
 

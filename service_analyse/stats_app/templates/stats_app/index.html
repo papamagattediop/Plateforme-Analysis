@@ -156,7 +156,13 @@ async function chargerColonnes() {
     const chip = document.getElementById('sidebar-ds-name');
     if (chip) chip.textContent = `Dataset #${id} · ${colonnes.length} col.`;
   } catch(e) {
-    showToast('Impossible de charger les colonnes : ' + e.message, 'error');
+    // Si dataset introuvable, effacer le cookie périmé silencieusement
+    try {
+      document.cookie = 'active_dataset_id=; path=/; max-age=0';
+      document.cookie = 'active_dataset_nom=; path=/; max-age=0';
+      document.getElementById('dataset-id').value = '';
+    } catch {}
+    showToast('Dataset introuvable — veuillez en sélectionner un dans Import.', 'error');
   }
 }
 
@@ -237,13 +243,51 @@ function afficherResultats(data, type) {
     return;
   }
 
-  // Transformer en tableau de KPIs + détails
+  // ── Rendu spécial : par groupe (tableau croisé) ──
+  if (type === 'groupe' && Array.isArray(data.groups) && data.groups.length > 0) {
+    const cols   = Object.keys(data.groups[0]);
+    const colors = ['var(--accent)','var(--success)','var(--warning)','#8B5CF6','#EC4899'];
+    let html = `
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:20px;">
+        <div class="kpi-card" style="--kpi-c:var(--accent);">
+          <div class="kpi-label">Variable</div>
+          <div class="kpi-value" style="font-size:16px;">${data.col_numeric || '—'}</div>
+        </div>
+        <div class="kpi-card" style="--kpi-c:var(--success);">
+          <div class="kpi-label">Groupe</div>
+          <div class="kpi-value" style="font-size:16px;">${data.col_group || '—'}</div>
+        </div>
+        <div class="kpi-card" style="--kpi-c:var(--warning);">
+          <div class="kpi-label">Nb groupes</div>
+          <div class="kpi-value" style="font-size:22px;">${data.n_groups}</div>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>${cols.map(c => `<th>${c.replace(/_/g,' ')}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${data.groups.map(row => `<tr>${cols.map(c => {
+              const v = row[c];
+              return `<td>${typeof v === 'number' ? v.toLocaleString('fr-FR',{maximumFractionDigits:4}) : v}</td>`;
+            }).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    zone.innerHTML = html;
+    return;
+  }
+
+  // ── Rendu générique ──
   const kpis = [];
   const details = {};
 
   for (const [k, v] of Object.entries(data)) {
     if (typeof v === 'number') {
-      kpis.push({ label: k, value: typeof v === 'number' ? v.toLocaleString('fr-FR', {maximumFractionDigits:4}) : v });
+      kpis.push({ label: k, value: v.toLocaleString('fr-FR', {maximumFractionDigits:4}) });
+    } else if (typeof v === 'boolean') {
+      kpis.push({ label: k, value: v ? 'Oui' : 'Non' });
+    } else if (typeof v === 'string' && k !== 'col_numeric' && k !== 'col_group') {
+      kpis.push({ label: k, value: v });
     } else if (typeof v === 'object' && v !== null) {
       details[k] = v;
     }
@@ -251,11 +295,11 @@ function afficherResultats(data, type) {
 
   let html = '';
 
-  // KPIs numériques
+  // KPIs
   if (kpis.length > 0) {
+    const colors = ['var(--accent)','var(--success)','var(--warning)','#8B5CF6','#EC4899'];
     html += `<div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:20px;">`;
     kpis.forEach((k, i) => {
-      const colors = ['var(--accent)','var(--success)','var(--warning)','#8B5CF6','#EC4899'];
       html += `<div class="kpi-card" style="--kpi-c:${colors[i%colors.length]};">
         <div class="kpi-label">${k.label.replace(/_/g,' ')}</div>
         <div class="kpi-value" style="font-size:22px;">${k.value}</div>
@@ -264,24 +308,36 @@ function afficherResultats(data, type) {
     html += '</div>';
   }
 
-  // Tableaux des objets imbriqués
+  // Objets et tableaux imbriqués
   for (const [k, v] of Object.entries(details)) {
-    if (typeof v === 'object' && !Array.isArray(v)) {
+    if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
+      // Tableau d'objets → table HTML
+      const cols = Object.keys(v[0]);
       html += `<div style="margin-bottom:16px;">
         <div class="section-label" style="margin-bottom:8px;">${k.replace(/_/g,' ')}</div>
-        <div style="overflow-x:auto;">
-          <table class="data-table">
-            <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
-            <tbody>
-              ${Object.entries(v).map(([kk,vv]) => `<tr><td><code style="font-family:var(--font-mono);font-size:12px;">${kk}</code></td><td>${typeof vv==='number'?vv.toLocaleString('fr-FR',{maximumFractionDigits:4}):vv}</td></tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
+        <div style="overflow-x:auto;"><table class="data-table">
+          <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+          <tbody>${v.map(row => `<tr>${cols.map(c => {
+            const val = row[c];
+            return `<td>${typeof val==='number'?val.toLocaleString('fr-FR',{maximumFractionDigits:4}):val}</td>`;
+          }).join('')}</tr>`).join('')}</tbody>
+        </table></div>
       </div>`;
     } else if (Array.isArray(v)) {
       html += `<div style="margin-bottom:16px;">
         <div class="section-label" style="margin-bottom:8px;">${k.replace(/_/g,' ')}</div>
         <p style="font-family:var(--font-mono);font-size:12px;color:var(--text-2);">[${v.slice(0,10).join(', ')}${v.length>10?'…':''}]</p>
+      </div>`;
+    } else if (typeof v === 'object') {
+      html += `<div style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:8px;">${k.replace(/_/g,' ')}</div>
+        <div style="overflow-x:auto;"><table class="data-table">
+          <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
+          <tbody>${Object.entries(v).map(([kk,vv]) =>
+            `<tr><td><code style="font-family:var(--font-mono);font-size:12px;">${kk}</code></td>
+             <td>${typeof vv==='number'?vv.toLocaleString('fr-FR',{maximumFractionDigits:4}):vv}</td></tr>`
+          ).join('')}</tbody>
+        </table></div>
       </div>`;
     }
   }
@@ -291,9 +347,15 @@ function afficherResultats(data, type) {
 
 document.addEventListener('DOMContentLoaded', function() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('dataset_id')) {
-    document.getElementById('dataset-id').value = params.get('dataset_id');
+  const id = params.get('dataset_id') || (typeof getActiveDatasetId === 'function' ? getActiveDatasetId() : '');
+  if (id) {
+    document.getElementById('dataset-id').value = id;
     chargerColonnes();
+    try {
+      const nom = getActiveDatasetNom();
+      const chip = document.getElementById('sidebar-ds-name');
+      if (chip && nom) chip.textContent = nom;
+    } catch {}
   }
 });
 </script>

@@ -211,13 +211,21 @@ def detect_types(df: pd.DataFrame) -> dict:
 
         # ── Tentative de conversion datetime sur les colonnes texte ──
         if serie.dtype == object:
-            try:
-                pd.to_datetime(serie.head(20), infer_datetime_format=True, errors='raise')
-                # Si la conversion réussit sur les 20 premiers → c'est une date
-                types[col] = 'datetime'
-                continue
-            except Exception:
-                pass
+            # Vérification rapide par regex avant d'appeler pd.to_datetime
+            sample = serie.head(20).astype(str)
+            import re
+            _DATE_RE = re.compile(
+                r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}'   # YYYY-MM-DD ou YYYY/MM/DD
+                r'|^\d{1,2}[-/]\d{1,2}[-/]\d{4}'  # DD-MM-YYYY
+                r'|^\d{4}\d{2}\d{2}$'              # YYYYMMDD
+            )
+            if sample.str.match(_DATE_RE).mean() >= 0.8:
+                try:
+                    pd.to_datetime(sample, errors='raise')
+                    types[col] = 'datetime'
+                    continue
+                except Exception:
+                    pass
 
             # ── Catégoriel vs Texte libre ──
             # Heuristique : si le ratio valeurs_uniques / total < 5% → catégoriel

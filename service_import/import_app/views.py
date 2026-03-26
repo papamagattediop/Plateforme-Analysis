@@ -117,6 +117,13 @@ class UploadView(APIView):
         df, rapport = nettoyer_dataframe(df)
         types    = detect_types(df)
         has_date = 'datetime' in types.values()
+        # Convertir les colonnes détectées comme datetime en datetime64 réel
+        for col, t in types.items():
+            if t == 'datetime' and df[col].dtype == object:
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                except Exception:
+                    pass
         donnees_json = dataframe_to_json(df.copy())
 
         dataset = Dataset.objects.create(
@@ -164,6 +171,12 @@ def _traiter_synchrone(dataset, fichier):
         df, rapport = nettoyer_dataframe(lire_fichier(fichier))
         types    = detect_types(df)
         has_date = 'datetime' in types.values()
+        for col, t in types.items():
+            if t == 'datetime' and df[col].dtype == object:
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                except Exception:
+                    pass
         dataset.nb_lignes         = len(df)
         dataset.nb_colonnes       = len(df.columns)
         dataset.has_date          = has_date

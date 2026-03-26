@@ -48,6 +48,8 @@ class DashboardListSerializer(serializers.ModelSerializer):
 # ── Serializers d'écriture ────────────────────────────────────
 
 class DashboardCreateSerializer(serializers.ModelSerializer):
+    dataset_nom = serializers.CharField(required=False, allow_blank=True, default='')
+
     class Meta:
         model  = Dashboard
         fields = ['dataset_id', 'dataset_nom', 'titre']
@@ -86,7 +88,7 @@ class WidgetCreateSerializer(serializers.ModelSerializer):
 
 class GraphiqueRequestSerializer(serializers.Serializer):
     """Paramètres pour générer la config d'un graphique."""
-    dataset_id  = serializers.UUIDField()
+    dataset_id  = serializers.CharField(max_length=255)
     type_widget = serializers.ChoiceField(choices=[t[0] for t in Widget.TYPE_CHOICES])
     variable_x  = serializers.CharField(max_length=255)
     variable_y  = serializers.CharField(max_length=255, required=False, allow_blank=True)

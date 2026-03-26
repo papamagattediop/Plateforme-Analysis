@@ -3,6 +3,24 @@
    Utilitaires globaux partagés entre cartes et dashboard
    ================================================================ */
 
+/* ── Active dataset (cookie partagé entre services) ───────── */
+
+function setActiveDataset(id, nom) {
+  document.cookie = `active_dataset_id=${id}; path=/; SameSite=Lax`;
+  document.cookie = `active_dataset_nom=${encodeURIComponent(nom || '')}; path=/; SameSite=Lax`;
+  const chip = document.getElementById('sidebar-ds-name');
+  if (chip) chip.textContent = nom || `Dataset #${id}`;
+}
+
+function getActiveDatasetId() {
+  return document.cookie.match(/active_dataset_id=([^;]+)/)?.[1] || '';
+}
+
+function getActiveDatasetNom() {
+  const raw = document.cookie.match(/active_dataset_nom=([^;]+)/)?.[1] || '';
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 /* ── API helpers ──────────────────────────────────────────── */
 
 function getCsrfToken() {

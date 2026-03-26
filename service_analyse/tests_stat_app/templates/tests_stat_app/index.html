@@ -150,7 +150,12 @@ async function chargerColonnes() {
     remplirSelect('col-groupe', colonnes);
     showToast(`${colonnes.length} colonnes chargées.`, 'success');
   } catch(e) {
-    showToast('Erreur : ' + e.message, 'error');
+    try {
+      document.cookie = 'active_dataset_id=; path=/; max-age=0';
+      document.cookie = 'active_dataset_nom=; path=/; max-age=0';
+      document.getElementById('dataset-id').value = '';
+    } catch {}
+    showToast('Dataset introuvable — sélectionnez-en un dans Import.', 'error');
   }
 }
 
@@ -225,10 +230,13 @@ async function lancerTest() {
     const cfg = CONFIG_TEST[typeTest];
 
     switch(typeTest) {
-      case 'selectionner':
+      case 'selectionner': {
+        const grpSel = document.getElementById('col-groupe').value;
         url = API + 'selectionner/';
         body = { dataset_id: +id, colonne: col };
+        if (grpSel) body.col_groupe = grpSel;
         break;
+      }
       case 'normalite':
         url = API + 'normalite/';
         body = { dataset_id: +id, colonne: col, methode: document.getElementById('methode').value };
@@ -268,13 +276,18 @@ function afficherResultat(data, type) {
   const isPassed = data.normal || data.test_recommande || data.p_value !== undefined;
   let html = '';
 
-  // Verdict (si disponible)
+  // Verdict auto-sélection (si disponible)
   if (data.test_recommande) {
+    const badges = [];
+    if (data.type_variable) badges.push(`<span class="badge badge-blue">${data.type_variable}</span>`);
+    if (data.nb_groupes)    badges.push(`<span class="badge badge-gray">${data.nb_groupes} groupe(s)</span>`);
+    if (data.normal !== undefined) badges.push(`<span class="badge ${data.normal ? 'badge-teal' : 'badge-amber'}">${data.normal ? 'Normale' : 'Non normale'}</span>`);
     html += `<div class="content-zone" style="margin-bottom:16px;">
       <div style="padding:16px;">
+        ${badges.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${badges.join('')}</div>` : ''}
         <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px;">Test recommandé</p>
-        <p style="font-size:22px;font-weight:600;color:var(--accent);font-family:var(--font-serif);">${data.test_recommande}</p>
-        ${data.raison ? `<p style="font-size:13px;color:var(--text-2);margin-top:6px;">${data.raison}</p>` : ''}
+        <p style="font-size:22px;font-weight:600;color:var(--accent);font-family:var(--font-serif);">${data.nom || data.test_recommande}</p>
+        ${data.alternatives?.length ? `<p style="font-size:12px;color:var(--text-3);margin-top:6px;">Alternatives : ${data.alternatives.join(', ')}</p>` : ''}
       </div>
     </div>`;
   }
@@ -319,7 +332,16 @@ function afficherResultat(data, type) {
 
 document.addEventListener('DOMContentLoaded', function() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('dataset_id')) document.getElementById('dataset-id').value = params.get('dataset_id');
+  const id = params.get('dataset_id') || (typeof getActiveDatasetId === 'function' ? getActiveDatasetId() : '');
+  if (id) {
+    document.getElementById('dataset-id').value = id;
+    chargerColonnes();
+    try {
+      const nom = getActiveDatasetNom();
+      const chip = document.getElementById('sidebar-ds-name');
+      if (chip && nom) chip.textContent = nom;
+    } catch {}
+  }
 });
 </script>
 {% endblock %}

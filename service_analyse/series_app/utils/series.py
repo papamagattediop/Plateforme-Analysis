@@ -43,12 +43,52 @@ def fit_arima(series, order=(1, 1, 1), periods=5):
     }
 
 
-def fit_prophet(df_ts, periods=5, freq='YS'):
-    from prophet import Prophet
-    model = Prophet(yearly_seasonality=True)
-    model.fit(df_ts)
-    future = model.make_future_dataframe(periods=periods, freq=freq)
-    forecast = model.predict(future)
-    result = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(periods)
-    result['ds'] = result['ds'].astype(str)
-    return {'forecast': result.to_dict(orient='records')}
+def fit_prophet(df_ts, periods=5, freq='MS'):
+    """
+    Prévision Prophet avec fallback ARIMA si prophet n'est pas installé.
+    df_ts doit avoir les colonnes 'ds' (datetime) et 'y' (numeric).
+    """
+    try:
+        from prophet import Prophet
+        model = Prophet(yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False)
+        model.fit(df_ts)
+        future   = model.make_future_dataframe(periods=periods, freq=freq)
+        forecast = model.predict(future)
+        result   = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(periods).copy()
+        result['ds'] = result['ds'].astype(str)
+        return {'forecast': result.to_dict(orient='records'), 'methode': 'prophet'}
+
+    except ImportError:
+        # ── Fallback ARIMA si prophet non installé ──────────────
+        serie = pd.to_numeric(df_ts['y'], errors='coerce').dropna()
+        if len(serie) < 3:
+            return {'forecast': [], 'methode': 'arima_fallback', 'warning': 'Données insuffisantes'}
+
+        try:
+            fitted = fit_arima(serie, order=(1, 1, 1), periods=periods)
+        except Exception:
+            fitted = fit_arima(serie, order=(0, 1, 0), periods=periods)
+
+        # Construire des dates futures à partir de la dernière date connue
+        last_date = pd.to_datetime(df_ts['ds']).max()
+        futures   = pd.date_range(start=last_date, periods=periods + 1, freq=freq)[1:]
+
+        records = []
+        for i, (date, yhat, lo, hi) in enumerate(zip(
+            futures,
+            fitted['forecast'],
+            fitted['conf_lower'],
+            fitted['conf_upper'],
+        )):
+            records.append({
+                'ds':         str(date.date()),
+                'yhat':       yhat,
+                'yhat_lower': lo,
+                'yhat_upper': hi,
+            })
+
+        return {
+            'forecast': records,
+            'methode':  'arima_fallback',
+            'warning':  'prophet non installé — prévision ARIMA(1,1,1) utilisée',
+        }

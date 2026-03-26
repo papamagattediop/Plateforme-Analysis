@@ -82,7 +82,7 @@
 <div class="page-header animate-in">
   <h1 class="page-title">Cartographie</h1>
   <p class="page-desc">
-    {% if dataset %}Visualisez <strong>{{ dataset.nom }}</strong> sur une carte interactive
+    {% if dataset %}Visualisez <strong>{{ dataset.nom_fichier }}</strong> sur une carte interactive
     {% else %}Générez des cartes choroplèthes et comparaisons{% endif %}
   </p>
 </div>
@@ -123,7 +123,7 @@
           <select id="sel-variable" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type_detecte == 'quantitative_continue' or col.type_detecte == 'quantitative_discrete' %}
+              {% if col.type == 'numeric' %}
                 <option value="{{ col.nom }}">{{ col.nom }}</option>
               {% endif %}
             {% endfor %}
@@ -136,7 +136,7 @@
           <select id="sel-variable2" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type_detecte == 'quantitative_continue' or col.type_detecte == 'quantitative_discrete' %}
+              {% if col.type == 'numeric' %}
                 <option value="{{ col.nom }}">{{ col.nom }}</option>
               {% endif %}
             {% endfor %}
@@ -149,7 +149,7 @@
           <select id="sel-geo" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type_detecte == 'qualitative_nominale' or col.type_detecte == 'qualitative_ordinale' %}
+              {% if col.type == 'categorical' or col.type == 'text' %}
                 <option value="{{ col.nom }}">{{ col.nom }}</option>
               {% endif %}
             {% endfor %}
@@ -277,54 +277,43 @@
 <script>
 const DATASET_ID = "{{ dataset_id }}";
 const COLONNES   = {{ colonnes|safe }};  {# liste des colonnes avec leurs types #}
+const IMPORT_API = "{{ SERVICE_IMPORT_URL }}/api/v1/";
 let typeCarte = 'choropletre';
 let palette   = 'bleu';
 
 // ── Initialisation ─────────────────────────────────────────
 (function init() {
   toggle('grp-variable2', false);
-  // Charger les années si une colonne date existe
   chargerAnnees();
-  // Détecter la colonne date quand on change de variable région
   document.getElementById('sel-geo').addEventListener('change', chargerAnnees);
 })();
 
 // ── Détecter et charger les modalités de la colonne date ───
 function chargerAnnees() {
-  const colonneDateExiste = COLONNES.some(c => c.type_detecte === 'datetime' || c.est_date);
+  const colonneDate = COLONNES.find(c => c.type === 'datetime');
   const grpAnnee = document.getElementById('grp-annee');
   const selAnnee = document.getElementById('sel-annee');
 
-  if (!colonneDateExiste || !DATASET_ID) {
+  if (!colonneDate || !DATASET_ID) {
     grpAnnee.style.display = 'none';
     return;
   }
 
-  // Récupérer les modalités depuis le mock/service_import
-  apiGet(`/api/v1/datasets/${DATASET_ID}/colonnes/`)
-    .then(data => {
-      const colonneDate = (data.colonnes || []).find(c => c.est_date || c.type_detecte === 'datetime');
-      if (!colonneDate) { grpAnnee.style.display = 'none'; return; }
-
-      // Récupérer les valeurs uniques de cette colonne
-      return apiGet(`/api/v1/datasets/${DATASET_ID}/data/?colonnes=${colonneDate.nom}&per_page=1000`);
-    })
-    .then(data => {
-      if (!data) return;
-      const donnees = data.donnees || [];
-      const colKey  = Object.keys(donnees[0] || {})[0];
-      if (!colKey) return;
-
-      const annees = [...new Set(donnees.map(r => String(r[colKey]).slice(0,4)))].sort();
+  // Récupérer les valeurs uniques depuis service_import
+  fetch(`${IMPORT_API}datasets/${DATASET_ID}/data/?colonnes=${colonneDate.nom}&per_page=1000`)
+    .then(r => r.json())
+    .then(json => {
+      const donnees = (json.data || json).donnees || [];
+      if (!donnees.length) { grpAnnee.style.display = 'none'; return; }
+      const colKey = colonneDate.nom;
+      const annees = [...new Set(donnees.map(r => String(r[colKey] || '').slice(0,4)).filter(Boolean))].sort();
 
       selAnnee.innerHTML = '<option value="">Toutes les années</option>';
       annees.forEach(a => {
         const opt = document.createElement('option');
-        opt.value = a;
-        opt.textContent = a;
+        opt.value = a; opt.textContent = a;
         selAnnee.appendChild(opt);
       });
-
       grpAnnee.style.display = 'block';
     })
     .catch(() => { grpAnnee.style.display = 'none'; });

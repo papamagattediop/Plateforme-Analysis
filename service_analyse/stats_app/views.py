@@ -35,9 +35,10 @@ def list_datasets(request):
 
 @api_view(['POST'])
 def univariee(request):
-    """POST {"dataset_id": 1, "column": "age_moyen"}"""
+    """POST {"dataset_id": 1, "colonne": "age_moyen"}"""
     df = get_dataset_data(request.data.get('dataset_id'))
-    return Response(stats_descriptives(df, request.data['column']))
+    col = request.data.get('colonne') or request.data.get('column')
+    return Response(stats_descriptives(df, col))
 
 
 @api_view(['POST'])
@@ -129,12 +130,23 @@ def nuage_points(request):
 
 @api_view(['POST'])
 def contingence(request):
-    """POST {"dataset_id": 1, "col1": "region", "col2": "sexe"}"""
+    """POST {"dataset_id": 1, "col_x": "region", "col_y": "sexe"}"""
     df = get_dataset_data(request.data.get('dataset_id'))
-    return Response(contingency_table(df, request.data['col1'], request.data['col2']))
+    col1 = request.data.get('col_x') or request.data.get('col1')
+    col2 = request.data.get('col_y') or request.data.get('col2')
+    return Response(contingency_table(df, col1, col2))
 
 
 # ══════════ CATÉGORIEL × NUMÉRIQUE ══════════
+
+@api_view(['POST'])
+def groupes(request):
+    """POST {"dataset_id": 1, "colonne": "age_moyen", "col_groupe": "region"} — alias frontend"""
+    df = get_dataset_data(request.data.get('dataset_id'))
+    return Response(stats_par_groupe(
+        df, request.data['colonne'], request.data['col_groupe']
+    ))
+
 
 @api_view(['POST'])
 def stats_groupees(request):

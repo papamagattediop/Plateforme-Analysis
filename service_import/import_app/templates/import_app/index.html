@@ -356,8 +356,11 @@ async function uploadFichier() {
       progress.classList.add('hidden');
       clearFile();
       const isAsync = r.status === 202;
-      afficherResultatUpload(data.data || data, isAsync);
+      const ds = data.data || data;
+      afficherResultatUpload(ds, isAsync);
       chargerDatasets();
+      const dsId = ds?.dataset_id || ds?.id;
+      if (!isAsync && dsId) try { setActiveDataset(dsId, ds.nom_fichier || fichierSelectionne.name); } catch {}
       showToast(isAsync ? 'Fichier en cours de traitement…' : 'Fichier importé avec succès !', isAsync ? 'info' : 'success');
     } else {
       progress.classList.add('hidden');
@@ -491,6 +494,8 @@ async function voirDataset(id) {
     `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-3);">Aucune colonne</td></tr>';
 
     document.getElementById('dataset-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+    // Cookie: stocker le dataset actif pour les autres services
+    try { setActiveDataset(ds.id, ds.nom_fichier); } catch {}
   } catch(e) {
     showToast('Erreur chargement dataset : ' + e.message, 'error');
   }
@@ -509,7 +514,7 @@ function fermerDetail() {
 
 function analyserDataset() {
   if (!datasetActif?.id) return;
-  window.open(ANALYSE_URL + '/stats/?dataset_id=' + datasetActif.id, '_blank');
+  window.location.href = ANALYSE_URL + '/stats/';
 }
 
 async function exporterDataset(fmt) {
@@ -522,6 +527,15 @@ async function supprimerDataset() {
   if (!confirm(`Supprimer définitivement « ${datasetActif.nom_fichier} » ?`)) return;
   try {
     await apiDelete(API + `datasets/${datasetActif.id}/delete/`);
+    // Effacer le cookie si c'était le dataset actif
+    try {
+      if (String(getActiveDatasetId()) === String(datasetActif.id)) {
+        document.cookie = 'active_dataset_id=; path=/; max-age=0';
+        document.cookie = 'active_dataset_nom=; path=/; max-age=0';
+        const chip = document.getElementById('sidebar-ds-name');
+        if (chip) chip.textContent = 'StatVision · Plateforme Analytics';
+      }
+    } catch {}
     showToast('Dataset supprimé.', 'success');
     fermerDetail();
     chargerDatasets();

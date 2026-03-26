@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}CensusAnalyse · Analyse{% endblock %}</title>
+  <title>{% block title %}StatVision · Analyse{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
@@ -16,23 +16,28 @@
 <aside class="sidebar" id="sidebar">
 
   <div class="sidebar-brand">
-    <div class="brand-logo">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>
-    </div>
-    <div>
-      <div class="brand-name">Census<em>Analyse</em></div>
-      <div class="brand-tag">v1.0 · 2026</div>
-    </div>
+    <a href="{{ SERVICE_VISU_URL }}/dashboard/" style="display:contents;text-decoration:none;color:inherit;">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Stat<em>Vision</em></div>
+        <div class="brand-tag">v1.0 · 2026</div>
+      </div>
+    </a>
   </div>
 
   <nav class="sidebar-nav">
 
-    <div class="nav-group-label">Visualisation</div>
+    <div class="nav-group-label">Tableau de bord</div>
 
     <a href="{{ SERVICE_VISU_URL }}/dashboard/" class="nav-link">
       <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Dashboard
     </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Visualisation</div>
 
     <a href="{{ SERVICE_VISU_URL }}/cartes/" class="nav-link">
       <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
@@ -73,7 +78,7 @@
   <div class="sidebar-footer">
     <div class="dataset-chip">
       <span class="dot"></span>
-      <span id="sidebar-ds-name">Service Analyse · :8002</span>
+      <span id="sidebar-ds-name">StatVision · Plateforme Analytics</span>
     </div>
   </div>
 
@@ -87,7 +92,7 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <nav class="breadcrumb" aria-label="Fil d'ariane">
-        <span>CensusAnalyse</span>
+        <a href="{{ SERVICE_VISU_URL }}/dashboard/" style="text-decoration:none;color:inherit;">StatVision</a>
         <span class="bc-sep">›</span>
         <span>Analyse</span>
         <span class="bc-sep">›</span>
@@ -108,7 +113,7 @@
 
 <div id="toast-root"></div>
 
-<script src="{% static 'frontend/js/chart_builder.js' %}"></script>
+<script src="{% static 'frontend/js/chart_builder.js' %}?v=2"></script>
 <script>
   (function() {
     function tick() {

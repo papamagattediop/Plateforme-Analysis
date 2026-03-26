@@ -13,7 +13,7 @@ def get_datasets_list():
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        return response.json()
+        return response.json().get('data', [])
     except Exception:
         return _mock_datasets_list()
 
@@ -41,7 +41,7 @@ def get_dataset_columns(dataset_id):
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        return response.json()
+        return response.json().get('data', [])
     except Exception:
         return _mock_columns()
 
