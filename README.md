@@ -294,6 +294,6 @@ DEBUG=True
 
 ## Auteurs
 
-**Papa Magatte Diop** 
-**Fatoumatou BAH**
-**Ndaosna Armand Djekombe**
+**Papa Magatte Diop**   
+**Fatoumatou BAH**  
+**Ndaosna Armand Djekombe**  
