@@ -1,0 +1,39 @@
+# ─── Framework Django ───────────────────────────────────────────────
+Django>=4.2
+djangorestframework
+django-cors-headers
+python-dotenv
+python-decouple
+
+# ─── Base de données ────────────────────────────────────────────────
+psycopg2-binary
+
+# ─── Tâches asynchrones ─────────────────────────────────────────────
+celery
+redis
+
+# ─── Données & Statistiques ─────────────────────────────────────────
+pandas
+numpy
+scipy
+statsmodels
+scikit-learn
+openpyxl
+xlrd
+
+# ─── Visualisation & Cartographie ───────────────────────────────────
+folium
+geopandas
+branca
+plotly
+reportlab
+
+# ─── HTTP inter-services ────────────────────────────────────────────
+requests
+
+# ─── Serveur production ─────────────────────────────────────────────
+gunicorn
+
+# ─── Tests ──────────────────────────────────────────────────────────
+pytest
+pytest-django

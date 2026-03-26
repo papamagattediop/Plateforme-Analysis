@@ -1,0 +1,248 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}{{ dashboard.titre }}{% endblock %}
+
+{% block breadcrumb %}
+  <span>Dashboard</span>
+  <span class="bc-sep">›</span>
+  <span class="bc-current">{{ dashboard.titre }}</span>
+{% endblock %}
+
+{% block topbar_actions %}
+  <span class="badge badge-blue">{{ dashboard.nb_widgets }} widget{% if dashboard.nb_widgets > 1 %}s{% endif %}</span>
+  <a href="/dashboard/share/{{ dashboard.share_token }}/" target="_blank" class="btn btn-secondary btn-sm">
+    <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </svg>
+    Partager
+  </a>
+  <a href="/api/v1/dashboards/{{ dashboard.id }}/export/pdf/" target="_blank" class="btn btn-secondary btn-sm">
+    <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    PDF
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header animate-in">
+  <h1 class="page-title">{{ dashboard.titre }}</h1>
+  <p class="page-desc">
+    {{ dashboard.dataset_nom }} ·
+    {{ dashboard.nb_widgets }} widget{% if dashboard.nb_widgets > 1 %}s{% endif %} ·
+    Mis à jour le {{ dashboard.updated_at|date:"d/m/Y à H:i" }}
+  </p>
+</div>
+
+{% if widgets %}
+  <div class="dash-grid animate-in" id="dash-grid">
+    {% for widget in widgets %}
+      <div class="dash-widget-card" id="card-{{ widget.id }}">
+        <div class="dash-widget-header">
+          <span class="dash-widget-titre">{{ widget.titre }}</span>
+          <span class="badge badge-gray">{{ widget.get_type_widget_display }}</span>
+        </div>
+        <div class="dash-widget-body">
+          <div class="dash-loading" id="loading-{{ widget.id }}">
+            <div class="spin-ring"></div>
+          </div>
+          {% if widget.type_widget == 'table' %}
+            <div id="widget-{{ widget.id }}" style="overflow-x:auto;width:100%"></div>
+          {% else %}
+            <canvas id="widget-{{ widget.id }}"></canvas>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+{% else %}
+  <div class="empty-state animate-in">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="48" height="48"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <h3>Aucun widget</h3>
+    <p>Ce dashboard ne contient aucun widget.</p>
+    <a href="/dashboard/?dataset_id={{ dashboard.dataset_id }}" class="btn btn-primary btn-sm" style="margin-top:8px">
+      Retour au builder
+    </a>
+  </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    gap: 16px;
+  }
+
+  .dash-widget-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: box-shadow var(--dur);
+  }
+
+  .dash-widget-card:hover { box-shadow: var(--shadow-md); }
+
+  .dash-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--cloud-dancer);
+  }
+
+  .dash-widget-titre {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    letter-spacing: -0.01em;
+  }
+
+  .dash-widget-body {
+    padding: 16px;
+    position: relative;
+    /* hauteur automatique selon le contenu */
+  }
+
+  .dash-widget-body canvas {
+    width: 100% !important;
+    height: 260px !important;
+    display: block;
+  }
+
+  /* Tableau — pas de hauteur fixe */
+  .dash-widget-body .data-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .dash-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0;
+  }
+
+  .dash-loading.hidden { display: none; }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 80px 32px;
+    gap: 12px;
+    color: var(--text-3);
+  }
+
+  .empty-state h3 { font-size: 16px; font-weight: 500; color: var(--text-2); }
+  .empty-state p  { font-size: 13px; color: var(--text-3); }
+  .empty-state svg { opacity: 0.3; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const DATASET_ID = "{{ dashboard.dataset_id }}";
+const WIDGETS = [
+  {% for w in widgets %}
+  {
+    id:          "{{ w.id }}",
+    type:        "{{ w.type_widget }}",
+    titre:       "{{ w.titre|escapejs }}",
+    variable_x:  "{{ w.variable_x|escapejs }}",
+    variable_y:  "{{ w.variable_y|escapejs }}",
+    filtres:     {{ w.filtres|safe }},
+  },
+  {% endfor %}
+];
+
+async function chargerTousWidgets() {
+  for (const w of WIDGETS) {
+    await chargerWidget(w);
+  }
+}
+
+async function chargerWidget(w) {
+  const loading = document.getElementById(`loading-${w.id}`);
+
+  try {
+    const resp = await fetch('/api/v1/dashboards/graphique/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dataset_id:  DATASET_ID,
+        type_widget: w.type,
+        variable_x:  w.variable_x,
+        variable_y:  w.variable_y || null,
+        titre:       w.titre,
+        filtres:     w.filtres,
+      }),
+    });
+
+    if (!resp.ok) {
+      if (loading) loading.classList.add('hidden');
+      return;
+    }
+
+    const config = await resp.json();
+
+    if (config.type === 'table') {
+      const div = document.getElementById(`widget-${w.id}`);
+      if (div) {
+        const heads = config.colonnes.map(c => `<th>${c}</th>`).join('');
+        const rows  = config.lignes.map(r =>
+          `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`
+        ).join('');
+        div.innerHTML = `
+          <table class="data-table">
+            <thead><tr>${heads}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <p class="table-note">${config.nb_total} lignes — 50 affichées</p>
+        `;
+      }
+    } else {
+      const canvas = document.getElementById(`widget-${w.id}`);
+      if (canvas) {
+        new Chart(canvas, {
+          type:    config.type === 'histogram' ? 'bar' : config.type,
+          data:    config.data,
+          options: {
+            ...config.options,
+            responsive:          true,
+            maintainAspectRatio: false,
+            plugins: {
+              ...((config.options || {}).plugins || {}),
+              legend: {
+                ...(((config.options || {}).plugins || {}).legend || {}),
+                position: 'bottom',
+                labels: { boxWidth: 12, padding: 12, font: { size: 11 } },
+              },
+            },
+          },
+        });
+      }
+    }
+
+  } catch (e) {
+    console.error(`Widget ${w.id} erreur:`, e);
+  } finally {
+    if (loading) loading.classList.add('hidden');
+  }
+}
+
+chargerTousWidgets();
+</script>
+{% endblock %}

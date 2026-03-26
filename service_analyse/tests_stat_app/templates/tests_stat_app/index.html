@@ -1,0 +1,325 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}CensusAnalyse · Tests statistiques{% endblock %}
+{% block breadcrumb %}<span class="bc-current">Tests statistiques</span>{% endblock %}
+
+{% block content %}
+
+<div class="page-header animate-in">
+  <h1 class="page-title">Tests statistiques inférentiels</h1>
+  <p class="page-desc">Sélection automatique ou manuelle — normalité, comparaison, indépendance.</p>
+</div>
+
+<div class="split-layout">
+
+  <!-- ── Panneau gauche : Configuration ──────────────────────── -->
+  <aside>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon">
+            <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+          </div>
+          Configuration du test
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Dataset -->
+        <div class="panel-section">
+          <div class="panel-section-label">Dataset</div>
+          <div class="form-group">
+            <label class="form-label">ID du dataset</label>
+            <input type="number" id="dataset-id" class="form-control" placeholder="ex: 1" min="1">
+          </div>
+          <button class="btn btn-secondary btn-sm btn-full" onclick="chargerColonnes()">
+            Charger les colonnes
+          </button>
+        </div>
+
+        <!-- Type de test -->
+        <div class="panel-section">
+          <div class="panel-section-label">Type de test</div>
+          <div class="type-selector" style="grid-template-columns: repeat(2,1fr);">
+            <button class="type-btn active" id="btn-selectionner" onclick="setTest('selectionner')">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+              Auto-sélection
+            </button>
+            <button class="type-btn" id="btn-normalite" onclick="setTest('normalite')">
+              <svg viewBox="0 0 24 24"><path d="M2 20 Q 6 4 12 4 Q 18 4 22 20"/></svg>
+              Normalité
+            </button>
+            <button class="type-btn" id="btn-comparaison" onclick="setTest('comparaison')">
+              <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Comparaison
+            </button>
+            <button class="type-btn" id="btn-independance" onclick="setTest('independance')">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              Indépendance χ²
+            </button>
+          </div>
+        </div>
+
+        <!-- Colonnes -->
+        <div class="panel-section" id="section-col-principale">
+          <div class="form-group">
+            <label class="form-label" id="label-col-principale">Variable principale</label>
+            <select id="col-principale" class="form-control">
+              <option value="">— Choisir une colonne —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel-section hidden" id="section-col-groupe">
+          <div class="form-group">
+            <label class="form-label" id="label-col-groupe">Variable de groupe</label>
+            <select id="col-groupe" class="form-control">
+              <option value="">— Choisir une colonne —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Options test comparaison -->
+        <div class="panel-section hidden" id="section-methode">
+          <div class="form-group">
+            <label class="form-label" id="label-methode">Méthode</label>
+            <select id="methode" class="form-control">
+              <option value="shapiro">Shapiro-Wilk</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="lancerTest()">
+          <svg viewBox="0 0 24 24" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Lancer le test
+        </button>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Zone résultats ───────────────────────────────────────── -->
+  <div>
+    <div class="content-zone">
+      <div class="zone-topbar">
+        <div class="zone-label">
+          <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+          Résultat du test
+        </div>
+        <span id="test-badge" class="badge badge-gray hidden">—</span>
+      </div>
+
+      <div class="zone-body" id="result-zone" style="align-items:flex-start;padding:24px;">
+        <div class="loading-veil hidden" id="loading">
+          <div class="spin-ring"></div>
+          <p class="loading-text">Test en cours…</p>
+        </div>
+        <div class="ph-block" id="placeholder" style="margin:auto;">
+          <div class="ph-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+          </div>
+          <p class="ph-title">Aucun test lancé</p>
+          <p class="ph-sub">Configurez et lancez un test statistique.</p>
+        </div>
+        <div id="result-content" class="hidden" style="width:100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/api/v1/tests/';
+const IMPORT_API = '{{ SERVICE_IMPORT_URL }}/api/v1/';
+let colonnes = [];
+let typeTest = 'selectionner';
+
+/* ── Charger colonnes ────────────────────────────────────────── */
+async function chargerColonnes() {
+  const id = document.getElementById('dataset-id').value;
+  if (!id) { showToast('Entrez un ID de dataset.', 'error'); return; }
+  try {
+    const r = await fetch(IMPORT_API + `datasets/${id}/colonnes/`);
+    if (!r.ok) throw new Error('Dataset introuvable');
+    const data = await r.json();
+    colonnes = data.data || data || [];
+    remplirSelect('col-principale', colonnes);
+    remplirSelect('col-groupe', colonnes);
+    showToast(`${colonnes.length} colonnes chargées.`, 'success');
+  } catch(e) {
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+function remplirSelect(id, cols) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">— Choisir —</option>' +
+    cols.map(c => `<option value="${c.nom}">${c.nom} (${c.type})</option>`).join('');
+}
+
+/* ── Type de test ────────────────────────────────────────────── */
+const CONFIG_TEST = {
+  selectionner: {
+    methodes: [],
+    labelPrincipale: 'Variable à tester',
+    labelGroupe: null,
+    showGroupe: false,
+    showMethode: false,
+  },
+  normalite: {
+    methodes: [{v:'shapiro',l:'Shapiro-Wilk'},{v:'ks',l:'Kolmogorov-Smirnov'},{v:'anderson',l:'Anderson-Darling'}],
+    labelPrincipale: 'Variable quantitative',
+    labelGroupe: null,
+    showGroupe: false,
+    showMethode: true,
+    labelMethode: 'Méthode',
+  },
+  comparaison: {
+    methodes: [{v:'ttest',l:'t-test (Student)'},{v:'anova',l:'ANOVA'},{v:'mann_whitney',l:'Mann-Whitney'},{v:'kruskal',l:'Kruskal-Wallis'}],
+    labelPrincipale: 'Variable quantitative',
+    labelGroupe: 'Variable de groupe',
+    showGroupe: true,
+    showMethode: true,
+    labelMethode: 'Test de comparaison',
+  },
+  independance: {
+    methodes: [],
+    labelPrincipale: 'Variable A (qualitative)',
+    labelGroupe: 'Variable B (qualitative)',
+    showGroupe: true,
+    showMethode: false,
+  },
+};
+
+function setTest(t) {
+  typeTest = t;
+  ['selectionner','normalite','comparaison','independance'].forEach(k => {
+    document.getElementById(`btn-${k}`).classList.toggle('active', k === t);
+  });
+  const cfg = CONFIG_TEST[t];
+  document.getElementById('label-col-principale').textContent = cfg.labelPrincipale;
+  document.getElementById('section-col-groupe').classList.toggle('hidden', !cfg.showGroupe);
+  if (cfg.labelGroupe) document.getElementById('label-col-groupe').textContent = cfg.labelGroupe;
+  document.getElementById('section-methode').classList.toggle('hidden', !cfg.showMethode);
+  if (cfg.showMethode && cfg.methodes.length > 0) {
+    document.getElementById('methode').innerHTML = cfg.methodes.map(m => `<option value="${m.v}">${m.l}</option>`).join('');
+    document.getElementById('label-methode').textContent = cfg.labelMethode;
+  }
+}
+
+/* ── Lancer le test ──────────────────────────────────────────── */
+async function lancerTest() {
+  const id = document.getElementById('dataset-id').value;
+  const col = document.getElementById('col-principale').value;
+  if (!id || !col) { showToast('Sélectionnez un dataset et une variable.', 'error'); return; }
+
+  setLoading('loading', true);
+  document.getElementById('placeholder').classList.add('hidden');
+  document.getElementById('result-content').classList.add('hidden');
+
+  try {
+    let url, body;
+    const cfg = CONFIG_TEST[typeTest];
+
+    switch(typeTest) {
+      case 'selectionner':
+        url = API + 'selectionner/';
+        body = { dataset_id: +id, colonne: col };
+        break;
+      case 'normalite':
+        url = API + 'normalite/';
+        body = { dataset_id: +id, colonne: col, methode: document.getElementById('methode').value };
+        break;
+      case 'comparaison': {
+        const grp = document.getElementById('col-groupe').value;
+        if (!grp) { showToast('Sélectionnez une variable de groupe.', 'error'); setLoading('loading', false); return; }
+        url = API + 'comparaison/';
+        body = { dataset_id: +id, colonne: col, col_groupe: grp, methode: document.getElementById('methode').value };
+        break;
+      }
+      case 'independance': {
+        const colB = document.getElementById('col-groupe').value;
+        if (!colB) { showToast('Sélectionnez la variable B.', 'error'); setLoading('loading', false); return; }
+        url = API + 'independance/';
+        body = { dataset_id: +id, col_x: col, col_y: colB };
+        break;
+      }
+    }
+
+    const data = await apiPost(url, body);
+    setLoading('loading', false);
+    afficherResultat(data.data || data, typeTest);
+    document.getElementById('test-badge').textContent = typeTest;
+    document.getElementById('test-badge').classList.remove('hidden');
+  } catch(e) {
+    setLoading('loading', false);
+    document.getElementById('placeholder').classList.remove('hidden');
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+function afficherResultat(data, type) {
+  const zone = document.getElementById('result-content');
+  zone.classList.remove('hidden');
+
+  const isPassed = data.normal || data.test_recommande || data.p_value !== undefined;
+  let html = '';
+
+  // Verdict (si disponible)
+  if (data.test_recommande) {
+    html += `<div class="content-zone" style="margin-bottom:16px;">
+      <div style="padding:16px;">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:8px;">Test recommandé</p>
+        <p style="font-size:22px;font-weight:600;color:var(--accent);font-family:var(--font-serif);">${data.test_recommande}</p>
+        ${data.raison ? `<p style="font-size:13px;color:var(--text-2);margin-top:6px;">${data.raison}</p>` : ''}
+      </div>
+    </div>`;
+  }
+
+  if (data.p_value !== undefined) {
+    const sig = data.p_value < 0.05;
+    html += `<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+      <div class="kpi-card" style="--kpi-c:var(--accent);">
+        <div class="kpi-label">Statistique</div>
+        <div class="kpi-value" style="font-size:22px;">${(data.statistique||data.statistic||0).toFixed(4)}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:${sig?'var(--danger)':'var(--success)'};">
+        <div class="kpi-label">p-value</div>
+        <div class="kpi-value" style="font-size:22px;">${(data.p_value).toFixed(4)}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:${sig?'var(--danger)':'var(--success)'};">
+        <div class="kpi-label">Conclusion (α=0.05)</div>
+        <div class="kpi-value" style="font-size:16px;">${sig ? 'H₀ rejetée' : 'H₀ non rejetée'}</div>
+      </div>
+    </div>`;
+    html += `<div style="padding:12px 16px;background:${sig?'var(--danger-bg)':'var(--success-bg)'};border-radius:var(--r-md);border:1px solid ${sig?'#FECACA':'#99F6E4'};">
+      <p style="font-size:13px;color:${sig?'var(--danger)':'var(--success)'};font-weight:500;">
+        ${data.conclusion || (sig ? 'La différence est statistiquement significative (p < 0.05).' : 'Pas de différence significative (p ≥ 0.05).')}
+      </p>
+    </div>`;
+  }
+
+  // Détails bruts restants
+  const skip = ['p_value','statistique','statistic','test_recommande','raison','conclusion','normal'];
+  const extras = Object.entries(data).filter(([k]) => !skip.includes(k));
+  if (extras.length > 0) {
+    html += `<div style="margin-top:16px;overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Paramètre</th><th>Valeur</th></tr></thead>
+        <tbody>${extras.map(([k,v]) => `<tr><td>${k.replace(/_/g,' ')}</td><td style="font-family:var(--font-mono);">${typeof v==='number'?v.toFixed(4):JSON.stringify(v)}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+
+  zone.innerHTML = html || '<p style="color:var(--text-3);padding:20px;">Résultat reçu.</p>';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('dataset_id')) document.getElementById('dataset-id').value = params.get('dataset_id');
+});
+</script>
+{% endblock %}

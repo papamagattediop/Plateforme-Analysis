@@ -1,0 +1,131 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CensusAnalyse · Import{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'frontend/css/main.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+
+  <div class="sidebar-brand">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Census<em>Analyse</em></div>
+      <div class="brand-tag">v1.0 · 2026</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+
+    <div class="nav-group-label">Analyse</div>
+
+    <a href="{{ SERVICE_VISU_URL }}/dashboard/" class="nav-link">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+
+    <a href="{{ SERVICE_VISU_URL }}/cartes/" class="nav-link">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      Cartographie
+    </a>
+
+    <a href="{{ SERVICE_ANALYSE_URL }}/stats/" class="nav-link">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Statistiques
+    </a>
+
+    <a href="{{ SERVICE_ANALYSE_URL }}/tests/" class="nav-link">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      Tests statistiques
+    </a>
+
+    <a href="{{ SERVICE_ANALYSE_URL }}/series/" class="nav-link">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Séries temporelles
+    </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Données</div>
+
+    <a href="/import/" class="nav-link {% if '/import' in request.path or request.path == '/' %}active{% endif %}">
+      <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Importer un fichier
+      {% if '/import' in request.path or request.path == '/' %}<span class="nav-dot"></span>{% endif %}
+    </a>
+
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="dataset-chip">
+      <span class="dot"></span>
+      <span id="sidebar-ds-name">Service Import · :8001</span>
+    </div>
+  </div>
+
+</aside>
+
+<div class="main-wrapper">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb" aria-label="Fil d'ariane">
+        <span>CensusAnalyse</span>
+        <span class="bc-sep">›</span>
+        <span>Données</span>
+        <span class="bc-sep">›</span>
+        {% block breadcrumb %}<span class="bc-current">Import</span>{% endblock %}
+      </nav>
+    </div>
+    <div class="topbar-right">
+      {% block topbar_actions %}{% endblock %}
+      <div class="topbar-clock" id="topbar-clock">--:--</div>
+    </div>
+  </header>
+
+  <main class="page-content">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<div id="toast-root"></div>
+
+<script src="{% static 'frontend/js/chart_builder.js' %}"></script>
+<script>
+  (function() {
+    function tick() {
+      const now = new Date();
+      const el = document.getElementById('topbar-clock');
+      if (el) el.textContent = now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+    }
+    tick();
+    setInterval(tick, 30000);
+  })();
+
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+  }
+
+  document.addEventListener('click', function(e) {
+    const sb = document.getElementById('sidebar');
+    if (sb && sb.classList.contains('open') && !sb.contains(e.target)) {
+      sb.classList.remove('open');
+    }
+  });
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

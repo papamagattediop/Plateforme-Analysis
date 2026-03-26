@@ -1,0 +1,536 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}CensusAnalyse · Importer un fichier{% endblock %}
+
+{% block breadcrumb %}<span class="bc-current">Importer un fichier</span>{% endblock %}
+
+{% block topbar_actions %}
+  <button class="btn btn-secondary btn-sm" onclick="chargerDatasets()">
+    <svg viewBox="0 0 24 24" stroke="currentColor"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    Actualiser
+  </button>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header animate-in">
+  <h1 class="page-title">Importer un fichier</h1>
+  <p class="page-desc">Chargez un fichier CSV ou Excel — les colonnes sont détectées et nettoyées automatiquement.</p>
+</div>
+
+<div class="split-layout">
+
+  <!-- ── Panneau gauche : Upload ──────────────────────────────── -->
+  <aside>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          Nouveau fichier
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Zone de dépôt -->
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <p class="drop-title">Glissez votre fichier ici</p>
+          <p class="drop-sub">CSV, Excel (.xlsx, .xls) · max 50 Mo</p>
+          <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
+        </div>
+
+        <!-- Fichier sélectionné -->
+        <div id="file-preview" class="file-preview hidden">
+          <div class="file-info">
+            <div class="file-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <p class="file-name" id="file-name">fichier.csv</p>
+              <p class="file-size" id="file-size">0 Ko</p>
+            </div>
+          </div>
+          <button class="btn-clear" onclick="clearFile()" title="Retirer">×</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="btn btn-primary btn-full" id="btn-upload" onclick="uploadFichier()" disabled>
+          <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Uploader et traiter
+        </button>
+
+        <!-- Barre de progression -->
+        <div id="upload-progress" class="hidden" style="margin-top:12px;">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="progress-fill"></div>
+          </div>
+          <p class="progress-label" id="progress-label">Chargement…</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Panel formats supportés -->
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-body" style="padding:14px 18px;">
+        <div class="panel-section-label">Formats acceptés</div>
+        <div style="display:flex; flex-direction:column; gap:7px; margin-top:8px;">
+          <div class="format-row">
+            <span class="badge badge-teal">CSV</span>
+            <span style="font-size:12px;color:var(--text-3);">Séparateur auto-détecté</span>
+          </div>
+          <div class="format-row">
+            <span class="badge badge-blue">XLSX</span>
+            <span style="font-size:12px;color:var(--text-3);">Excel 2007+</span>
+          </div>
+          <div class="format-row">
+            <span class="badge badge-gray">XLS</span>
+            <span style="font-size:12px;color:var(--text-3);">Excel 97-2003</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <p style="font-size:11.5px;color:var(--text-3);line-height:1.6;">
+          Les fichiers &gt; 2 Mo sont traités de façon asynchrone. Le statut se met à jour automatiquement.
+        </p>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Zone principale : Datasets ──────────────────────────── -->
+  <div>
+
+    <!-- Résultat d'un upload récent -->
+    <div id="upload-result" class="hidden" style="margin-bottom:16px;"></div>
+
+    <!-- Liste des datasets -->
+    <div class="content-zone">
+      <div class="zone-topbar">
+        <div class="zone-label">
+          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Datasets importés
+        </div>
+        <span id="ds-count" class="badge badge-gray">0</span>
+      </div>
+      <div id="datasets-container" style="padding:16px;">
+        <div class="ph-block">
+          <div class="ph-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <p class="ph-title">Aucun dataset</p>
+          <p class="ph-sub">Importez un fichier CSV ou Excel pour commencer.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Détail d'un dataset sélectionné -->
+    <div id="dataset-detail" class="hidden" style="margin-top:16px;">
+      <div class="content-zone">
+        <div class="zone-topbar">
+          <div class="zone-label">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span id="detail-titre">Détail dataset</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="fermerDetail()">✕ Fermer</button>
+        </div>
+
+        <!-- KPIs -->
+        <div style="padding:16px;">
+          <div class="kpi-grid" id="detail-kpis" style="margin-bottom:20px;"></div>
+
+          <!-- Colonnes -->
+          <div class="section-head">
+            <span class="section-label">Colonnes détectées</span>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" id="colonnes-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Type détecté</th>
+                  <th>Valeurs manquantes</th>
+                  <th>Valeurs uniques</th>
+                </tr>
+              </thead>
+              <tbody id="colonnes-tbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="analyserDataset()">
+              <svg viewBox="0 0 24 24" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Analyser dans Stats
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="exporterDataset('csv')">
+              <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export CSV
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="exporterDataset('xlsx')">
+              Export Excel
+            </button>
+            <button class="btn btn-danger btn-sm" style="margin-left:auto;" onclick="supprimerDataset()">
+              Supprimer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Drop zone ──────────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border-input);
+  border-radius: var(--r-lg);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  background: var(--cloud-dancer);
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.drop-icon {
+  width: 52px; height: 52px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  display: grid; place-items: center;
+  margin: 0 auto 12px;
+  box-shadow: var(--shadow-xs);
+}
+.drop-icon svg { width: 24px; height: 24px; stroke: var(--text-3); }
+.drop-title { font-size: 14px; font-weight: 500; color: var(--text-1); margin-bottom: 4px; }
+.drop-sub { font-size: 12px; color: var(--text-3); }
+
+/* ── File preview ───────────────────────────────────────────── */
+.file-preview {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--accent-light);
+  border: 1px solid #BFDBFE;
+  border-radius: var(--r-md);
+  margin-top: 12px;
+}
+.file-preview.hidden { display: none; }
+.file-info { display: flex; align-items: center; gap: 10px; }
+.file-icon {
+  width: 32px; height: 32px;
+  background: var(--white);
+  border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  border: 1px solid #BFDBFE;
+}
+.file-icon svg { width: 16px; height: 16px; stroke: var(--accent); }
+.file-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.file-size { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.btn-clear {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; color: var(--text-3); line-height: 1;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  transition: all var(--dur);
+}
+.btn-clear:hover { color: var(--danger); background: var(--danger-bg); }
+
+/* ── Progress bar ───────────────────────────────────────────── */
+.progress-bar-wrap {
+  height: 5px; background: var(--border-light);
+  border-radius: 20px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; width: 0%;
+  background: var(--accent);
+  border-radius: 20px;
+  transition: width 0.3s var(--ease);
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+@keyframes progressPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.progress-label { font-size: 11px; color: var(--text-3); margin-top: 5px; font-family: var(--font-mono); text-align:center; }
+
+/* ── Format rows ─────────────────────────────────────────────── */
+.format-row { display: flex; align-items: center; gap: 10px; }
+
+/* ── Dataset cards ──────────────────────────────────────────── */
+.dataset-card {
+  display: flex; align-items: center;
+  padding: 12px 14px; gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  background: var(--white);
+  margin-bottom: 8px;
+  animation: fadeInUp 0.25s var(--ease) both;
+}
+.dataset-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.dataset-card.selected { border-color: var(--accent); background: var(--accent-light); }
+.ds-icon {
+  width: 38px; height: 38px; border-radius: var(--r-md);
+  background: var(--cloud-dancer); border: 1px solid var(--border);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.ds-icon svg { width: 18px; height: 18px; stroke: var(--text-2); fill: none; stroke-width: 2; }
+.ds-info { flex: 1; min-width: 0; }
+.ds-name { font-size: 13px; font-weight: 500; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-meta { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/api/v1/';
+const ANALYSE_URL = '{{ SERVICE_ANALYSE_URL }}';
+let datasetActif = null;
+let fichierSelectionne = null;
+
+/* ── Drag & Drop ─────────────────────────────────────────────── */
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) setFichier(f);
+});
+
+fi.addEventListener('change', () => { if (fi.files[0]) setFichier(fi.files[0]); });
+
+function setFichier(f) {
+  fichierSelectionne = f;
+  document.getElementById('file-name').textContent = f.name;
+  document.getElementById('file-size').textContent = formatSize(f.size);
+  document.getElementById('file-preview').classList.remove('hidden');
+  document.getElementById('btn-upload').disabled = false;
+}
+
+function clearFile() {
+  fichierSelectionne = null;
+  fi.value = '';
+  document.getElementById('file-preview').classList.add('hidden');
+  document.getElementById('btn-upload').disabled = true;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' Ko';
+  return (bytes/1048576).toFixed(1) + ' Mo';
+}
+
+/* ── Upload ──────────────────────────────────────────────────── */
+async function uploadFichier() {
+  if (!fichierSelectionne) return;
+  const btn = document.getElementById('btn-upload');
+  const progress = document.getElementById('upload-progress');
+  btn.disabled = true;
+  progress.classList.remove('hidden');
+  document.getElementById('progress-label').textContent = 'Envoi en cours…';
+
+  const form = new FormData();
+  form.append('fichier', fichierSelectionne);
+
+  try {
+    const r = await fetch(API + 'upload/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+      body: form,
+    });
+    const data = await r.json();
+
+    if (r.ok || r.status === 202) {
+      progress.classList.add('hidden');
+      clearFile();
+      const isAsync = r.status === 202;
+      afficherResultatUpload(data.data || data, isAsync);
+      chargerDatasets();
+      showToast(isAsync ? 'Fichier en cours de traitement…' : 'Fichier importé avec succès !', isAsync ? 'info' : 'success');
+    } else {
+      progress.classList.add('hidden');
+      btn.disabled = false;
+      showToast(data.message || 'Erreur lors de l\'import.', 'error');
+    }
+  } catch(e) {
+    progress.classList.add('hidden');
+    btn.disabled = false;
+    showToast('Erreur réseau : ' + e.message, 'error');
+  }
+}
+
+function afficherResultatUpload(data, isAsync) {
+  const zone = document.getElementById('upload-result');
+  if (!data) return;
+  const couleur = isAsync ? 'warning' : 'teal';
+  zone.innerHTML = `
+    <div class="content-zone">
+      <div style="padding:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <span class="badge badge-${couleur}">${isAsync ? '⏳ Traitement asynchrone' : '✅ Importé'}</span>
+          <span style="font-size:13px;font-weight:500;">${data.nom_fichier || data.message || ''}</span>
+        </div>
+        ${!isAsync ? `
+        <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+          <div class="kpi-card" style="--kpi-c:var(--accent);">
+            <div class="kpi-label">Lignes</div>
+            <div class="kpi-value">${(data.nb_lignes||0).toLocaleString('fr-FR')}</div>
+          </div>
+          <div class="kpi-card" style="--kpi-c:var(--success);">
+            <div class="kpi-label">Colonnes</div>
+            <div class="kpi-value">${data.nb_colonnes||0}</div>
+          </div>
+          <div class="kpi-card" style="--kpi-c:var(--warning);">
+            <div class="kpi-label">Série temporelle</div>
+            <div class="kpi-value">${data.has_date ? 'Oui' : 'Non'}</div>
+          </div>
+        </div>` : '<p style="font-size:13px;color:var(--text-2);">Le fichier est volumineux et sera traité en arrière-plan. Actualisez la liste dans quelques instants.</p>'}
+      </div>
+    </div>`;
+  zone.classList.remove('hidden');
+}
+
+/* ── Liste des datasets ─────────────────────────────────────── */
+async function chargerDatasets() {
+  try {
+    const data = await apiGet(API + 'datasets/');
+    const datasets = data.data || data;
+    const container = document.getElementById('datasets-container');
+    document.getElementById('ds-count').textContent = Array.isArray(datasets) ? datasets.length : 0;
+
+    if (!Array.isArray(datasets) || datasets.length === 0) {
+      container.innerHTML = `<div class="ph-block">
+        <div class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+        <p class="ph-title">Aucun dataset</p>
+        <p class="ph-sub">Importez un fichier CSV ou Excel pour commencer.</p>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = datasets.map(ds => `
+      <div class="dataset-card ${datasetActif?.id === ds.id ? 'selected' : ''}" onclick="voirDataset(${ds.id})">
+        <div class="ds-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="ds-info">
+          <div class="ds-name">${ds.nom_fichier}</div>
+          <div class="ds-meta">${(ds.nb_lignes||0).toLocaleString('fr-FR')} lignes · ${ds.nb_colonnes||0} col. · ${statutBadge(ds.statut)}</div>
+        </div>
+        <span class="badge ${statutClass(ds.statut)}">${ds.statut}</span>
+      </div>
+    `).join('');
+  } catch(e) {
+    console.error('Erreur chargement datasets:', e);
+  }
+}
+
+function statutBadge(s) {
+  const map = {traite:'Traité', en_attente:'En attente', en_cours:'En cours', erreur:'Erreur'};
+  return map[s] || s;
+}
+
+function statutClass(s) {
+  const map = {traite:'badge-teal', en_attente:'badge-amber', en_cours:'badge-blue', erreur:'badge-red'};
+  return map[s] || 'badge-gray';
+}
+
+/* ── Détail dataset ─────────────────────────────────────────── */
+async function voirDataset(id) {
+  datasetActif = { id };
+  chargerDatasets(); // refresh pour sélection visuelle
+
+  try {
+    const data = await apiGet(API + `datasets/${id}/`);
+    const ds = data.data || data;
+    datasetActif = ds;
+
+    document.getElementById('detail-titre').textContent = ds.nom_fichier;
+    document.getElementById('dataset-detail').classList.remove('hidden');
+
+    // KPIs
+    document.getElementById('detail-kpis').innerHTML = `
+      <div class="kpi-card" style="--kpi-c:var(--accent);">
+        <div class="kpi-label">Lignes</div>
+        <div class="kpi-value">${(ds.nb_lignes||0).toLocaleString('fr-FR')}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--success);">
+        <div class="kpi-label">Colonnes</div>
+        <div class="kpi-value">${ds.nb_colonnes||0}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--warning);">
+        <div class="kpi-label">Statut</div>
+        <div class="kpi-value" style="font-size:18px;">${ds.statut}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:#8B5CF6;">
+        <div class="kpi-label">Série temporelle</div>
+        <div class="kpi-value" style="font-size:18px;">${ds.has_date ? '✓' : '—'}</div>
+      </div>
+    `;
+
+    // Colonnes
+    const colonnes = ds.colonnes || [];
+    document.getElementById('colonnes-tbody').innerHTML = colonnes.map(c => `
+      <tr>
+        <td><code style="font-family:var(--font-mono);font-size:12px;">${c.nom}</code></td>
+        <td><span class="badge ${typeClass(c.type_detecte)}">${c.type_detecte}</span></td>
+        <td style="font-family:var(--font-mono);">${c.nb_valeurs_manquantes||0}</td>
+        <td style="font-family:var(--font-mono);">${c.nb_valeurs_uniques||0}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-3);">Aucune colonne</td></tr>';
+
+    document.getElementById('dataset-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+  } catch(e) {
+    showToast('Erreur chargement dataset : ' + e.message, 'error');
+  }
+}
+
+function typeClass(t) {
+  const map = {numeric:'badge-blue', text:'badge-gray', datetime:'badge-teal', boolean:'badge-amber'};
+  return map[t] || 'badge-gray';
+}
+
+function fermerDetail() {
+  datasetActif = null;
+  document.getElementById('dataset-detail').classList.add('hidden');
+  chargerDatasets();
+}
+
+function analyserDataset() {
+  if (!datasetActif?.id) return;
+  window.open(ANALYSE_URL + '/stats/?dataset_id=' + datasetActif.id, '_blank');
+}
+
+async function exporterDataset(fmt) {
+  if (!datasetActif?.id) return;
+  window.location.href = API + `datasets/${datasetActif.id}/export/${fmt}/`;
+}
+
+async function supprimerDataset() {
+  if (!datasetActif?.id) return;
+  if (!confirm(`Supprimer définitivement « ${datasetActif.nom_fichier} » ?`)) return;
+  try {
+    await apiDelete(API + `datasets/${datasetActif.id}/delete/`);
+    showToast('Dataset supprimé.', 'success');
+    fermerDetail();
+    chargerDatasets();
+  } catch(e) {
+    showToast('Erreur suppression : ' + e.message, 'error');
+  }
+}
+
+/* ── Init ────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', chargerDatasets);
+</script>
+{% endblock %}

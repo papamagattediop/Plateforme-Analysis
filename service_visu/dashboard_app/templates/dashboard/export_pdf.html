@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 1.2cm 1.5cm;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    color: #0D1B2A;
+    background: #fff;
+  }
+
+  /* ── En-tête ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #2563EB;
+  }
+
+  .header-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #0D1B2A;
+  }
+
+  .header-meta {
+    font-size: 10px;
+    color: #64748B;
+    margin-top: 3px;
+  }
+
+  .header-brand {
+    font-size: 13px;
+    font-weight: bold;
+    color: #2563EB;
+    letter-spacing: -0.02em;
+  }
+
+  /* ── Grille 2 colonnes ── */
+  .widgets-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  /* ── Widget card ── */
+  .widget-card {
+    border: 1px solid #E5E2DB;
+    border-radius: 8px;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .widget-header {
+    background: #F0EEE9;
+    padding: 7px 12px;
+    border-bottom: 1px solid #E5E2DB;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .widget-titre {
+    font-size: 11px;
+    font-weight: bold;
+    color: #0D1B2A;
+  }
+
+  .widget-type {
+    font-size: 9px;
+    color: #8C9BAD;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .widget-body {
+    padding: 10px 12px;
+  }
+
+  /* ── Tableau ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+
+  th {
+    background: #F0EEE9;
+    padding: 5px 8px;
+    text-align: left;
+    border-bottom: 1px solid #E5E2DB;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748B;
+  }
+
+  td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #F0EEE9;
+    color: #0D1B2A;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Graphique simulé (barres SVG) ── */
+  .chart-placeholder {
+    padding: 8px 0;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  .bar-label {
+    font-size: 9px;
+    color: #4A5568;
+    width: 80px;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 14px;
+    background: #F0EEE9;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #2563EB;
+  }
+
+  .bar-value {
+    font-size: 9px;
+    color: #4A5568;
+    width: 40px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Widget erreur */
+  .widget-erreur {
+    padding: 16px;
+    text-align: center;
+    color: #8C9BAD;
+    font-size: 10px;
+  }
+
+  /* Note tableau */
+  .table-note {
+    font-size: 9px;
+    color: #8C9BAD;
+    text-align: right;
+    margin-top: 5px;
+  }
+</style>
+</head>
+<body>
+
+<!-- En-tête -->
+<div class="header">
+  <div>
+    <div class="header-title">{{ dashboard.titre }}</div>
+    <div class="header-meta">
+      {{ dashboard.dataset_nom }} · {{ dashboard.nb_widgets }} widget(s) · {{ dashboard.updated_at|date:"d/m/Y" }}
+    </div>
+  </div>
+  <div class="header-brand">CensusAnalyse</div>
+</div>
+
+<!-- Grille widgets -->
+<div class="widgets-grid">
+  {% for wd in widgets_data %}
+    <div class="widget-card">
+      <div class="widget-header">
+        <span class="widget-titre">{{ wd.widget.titre }}</span>
+        <span class="widget-type">{{ wd.widget.get_type_widget_display }}</span>
+      </div>
+      <div class="widget-body">
+
+        {% if wd.config.type == 'table' %}
+          <!-- Tableau -->
+          <table>
+            <thead>
+              <tr>
+                {% for col in wd.config.colonnes %}
+                  <th>{{ col }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for ligne in wd.config.lignes %}
+                <tr>
+                  {% for val in ligne %}
+                    <td>{{ val }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if wd.config.nb_total %}
+            <p class="table-note">{{ wd.config.nb_total }} lignes au total</p>
+          {% endif %}
+
+        {% elif wd.config.data and wd.config.data.labels %}
+          <!-- Graphique en barres horizontales (rendu PDF) -->
+          <div class="chart-placeholder">
+            {% with labels=wd.config.data.labels dataset=wd.config.data.datasets.0 %}
+              {% if dataset.data %}
+                {% for i in dataset.data|slice:":10" %}
+                  {% with label=labels|slice:forloop.counter0|last val=i %}
+                  <div class="bar-row">
+                    <span class="bar-label">{{ label }}</span>
+                    <div class="bar-track">
+                      <!-- largeur proportionnelle via style inline -->
+                      <div class="bar-fill" style="width:{{ val|floatformat:0 }}%;background:{{ dataset.borderColor|default:'#2563EB' }}"></div>
+                    </div>
+                    <span class="bar-value">{{ val|floatformat:1 }}</span>
+                  </div>
+                  {% endwith %}
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+          </div>
+
+        {% else %}
+          <div class="widget-erreur">Données non disponibles</div>
+        {% endif %}
+
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+</body>
+</html>

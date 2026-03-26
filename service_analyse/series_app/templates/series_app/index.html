@@ -1,0 +1,346 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}CensusAnalyse · Séries temporelles{% endblock %}
+{% block breadcrumb %}<span class="bc-current">Séries temporelles</span>{% endblock %}
+
+{% block content %}
+
+<div class="page-header animate-in">
+  <h1 class="page-title">Séries temporelles</h1>
+  <p class="page-desc">Stationnarité, modèles ARIMA, prévisions Prophet et décomposition de séries.</p>
+</div>
+
+<div class="split-layout">
+
+  <!-- ── Panneau gauche : Configuration ──────────────────────── -->
+  <aside>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          Configuration
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Dataset -->
+        <div class="panel-section">
+          <div class="panel-section-label">Dataset</div>
+          <div class="form-group">
+            <label class="form-label">ID du dataset</label>
+            <input type="number" id="dataset-id" class="form-control" placeholder="ex: 1" min="1">
+          </div>
+          <button class="btn btn-secondary btn-sm btn-full" onclick="chargerColonnes()">
+            Charger les colonnes
+          </button>
+        </div>
+
+        <!-- Type d'analyse -->
+        <div class="panel-section">
+          <div class="panel-section-label">Analyse</div>
+          <div class="type-selector" style="grid-template-columns: 1fr 1fr;">
+            <button class="type-btn active" id="btn-stationarity" onclick="setAnalyse('stationarity')">
+              <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="3 6 12 3 21 6"/></svg>
+              Stationnarité
+            </button>
+            <button class="type-btn" id="btn-arima" onclick="setAnalyse('arima')">
+              <svg viewBox="0 0 24 24"><polyline points="2 20 8 14 12 16 16 10 22 4"/></svg>
+              ARIMA
+            </button>
+            <button class="type-btn" id="btn-prophet" onclick="setAnalyse('prophet')">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+              Prophet
+            </button>
+          </div>
+        </div>
+
+        <!-- Colonnes -->
+        <div class="panel-section">
+          <div class="form-group">
+            <label class="form-label">Colonne date / temps</label>
+            <select id="col-date" class="form-control">
+              <option value="">— Choisir —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valeur à analyser</label>
+            <select id="col-valeur" class="form-control">
+              <option value="">— Choisir —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Options ARIMA -->
+        <div class="panel-section hidden" id="section-arima">
+          <div class="panel-section-label">Paramètres ARIMA</div>
+          <div class="form-group">
+            <label class="form-label">Horizons de prévision</label>
+            <input type="number" id="arima-horizons" class="form-control" value="12" min="1" max="120">
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div class="form-group" style="flex:1;">
+              <label class="form-label">p</label>
+              <input type="number" id="arima-p" class="form-control" value="" placeholder="auto" min="0">
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label">d</label>
+              <input type="number" id="arima-d" class="form-control" value="" placeholder="auto" min="0">
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label class="form-label">q</label>
+              <input type="number" id="arima-q" class="form-control" value="" placeholder="auto" min="0">
+            </div>
+          </div>
+          <p class="form-hint">Laissez vide pour auto-sélection (pmdarima).</p>
+        </div>
+
+        <!-- Options Prophet -->
+        <div class="panel-section hidden" id="section-prophet">
+          <div class="panel-section-label">Paramètres Prophet</div>
+          <div class="form-group">
+            <label class="form-label">Horizons de prévision</label>
+            <input type="number" id="prophet-horizons" class="form-control" value="24" min="1" max="240">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fréquence</label>
+            <select id="prophet-freq" class="form-control">
+              <option value="M">Mensuelle (M)</option>
+              <option value="D">Quotidienne (D)</option>
+              <option value="W">Hebdomadaire (W)</option>
+              <option value="Y">Annuelle (Y)</option>
+              <option value="Q">Trimestrielle (Q)</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="analyser()">
+          <svg viewBox="0 0 24 24" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Analyser
+        </button>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Zone résultats ───────────────────────────────────────── -->
+  <div>
+    <div class="content-zone">
+      <div class="zone-topbar">
+        <div class="zone-label">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Résultats de l'analyse
+        </div>
+        <span id="analyse-badge" class="badge badge-gray hidden">—</span>
+      </div>
+
+      <div class="zone-body" id="result-zone" style="align-items:flex-start;padding:24px;min-height:500px;">
+        <div class="loading-veil hidden" id="loading">
+          <div class="spin-ring"></div>
+          <p class="loading-text">Calcul en cours…</p>
+        </div>
+        <div class="ph-block" id="placeholder" style="margin:auto;">
+          <div class="ph-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <p class="ph-title">Aucune analyse</p>
+          <p class="ph-sub">Configurez votre série temporelle et lancez l'analyse.</p>
+        </div>
+        <div id="result-content" class="hidden" style="width:100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const API = '/api/v1/';
+const IMPORT_API = '{{ SERVICE_IMPORT_URL }}/api/v1/';
+let typeAnalyse = 'stationarity';
+let chartInstance = null;
+
+/* ── Colonnes ────────────────────────────────────────────────── */
+async function chargerColonnes() {
+  const id = document.getElementById('dataset-id').value;
+  if (!id) { showToast('Entrez un ID de dataset.', 'error'); return; }
+  try {
+    const r = await fetch(IMPORT_API + `datasets/${id}/colonnes/`);
+    if (!r.ok) throw new Error('Dataset introuvable');
+    const data = await r.json();
+    const cols = data.data || data || [];
+
+    const dates = cols.filter(c => c.type === 'datetime' || c.type === 'text');
+    const nums = cols.filter(c => c.type === 'numeric');
+
+    remplirSelect('col-date', dates.length ? dates : cols);
+    remplirSelect('col-valeur', nums.length ? nums : cols);
+    showToast(`${cols.length} colonnes chargées.`, 'success');
+  } catch(e) {
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+function remplirSelect(id, cols) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">— Choisir —</option>' +
+    cols.map(c => `<option value="${c.nom}">${c.nom} (${c.type})</option>`).join('');
+}
+
+/* ── Type d'analyse ──────────────────────────────────────────── */
+function setAnalyse(t) {
+  typeAnalyse = t;
+  ['stationarity','arima','prophet'].forEach(k => {
+    document.getElementById(`btn-${k}`).classList.toggle('active', k === t);
+  });
+  document.getElementById('section-arima').classList.toggle('hidden', t !== 'arima');
+  document.getElementById('section-prophet').classList.toggle('hidden', t !== 'prophet');
+}
+
+/* ── Analyser ────────────────────────────────────────────────── */
+async function analyser() {
+  const id = document.getElementById('dataset-id').value;
+  const colDate = document.getElementById('col-date').value;
+  const colVal = document.getElementById('col-valeur').value;
+
+  if (!id || !colVal) { showToast('Sélectionnez un dataset et une valeur.', 'error'); return; }
+
+  setLoading('loading', true);
+  document.getElementById('placeholder').classList.add('hidden');
+  document.getElementById('result-content').classList.add('hidden');
+
+  try {
+    let url, body;
+    switch(typeAnalyse) {
+      case 'stationarity':
+        url = API + 'stationarity/';
+        body = { dataset_id: +id, colonne_valeur: colVal, colonne_date: colDate || undefined };
+        break;
+      case 'arima': {
+        const h = +document.getElementById('arima-horizons').value || 12;
+        const p = document.getElementById('arima-p').value;
+        const d = document.getElementById('arima-d').value;
+        const q = document.getElementById('arima-q').value;
+        url = API + 'arima/';
+        body = {
+          dataset_id: +id, colonne_valeur: colVal, colonne_date: colDate || undefined,
+          horizons: h,
+          ...(p ? {p:+p} : {}), ...(d ? {d:+d} : {}), ...(q ? {q:+q} : {}),
+        };
+        break;
+      }
+      case 'prophet': {
+        const h = +document.getElementById('prophet-horizons').value || 24;
+        const freq = document.getElementById('prophet-freq').value;
+        url = API + 'prophet/';
+        body = { dataset_id: +id, colonne_valeur: colVal, colonne_date: colDate || undefined, horizons: h, freq };
+        break;
+      }
+    }
+
+    const data = await apiPost(url, body);
+    setLoading('loading', false);
+    afficherResultat(data.data || data, typeAnalyse);
+    document.getElementById('analyse-badge').textContent = typeAnalyse;
+    document.getElementById('analyse-badge').classList.remove('hidden');
+  } catch(e) {
+    setLoading('loading', false);
+    document.getElementById('placeholder').classList.remove('hidden');
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+/* ── Affichage ───────────────────────────────────────────────── */
+function afficherResultat(data, type) {
+  const zone = document.getElementById('result-content');
+  zone.classList.remove('hidden');
+
+  let html = '';
+
+  if (type === 'stationarity') {
+    const stationnaire = data.stationnaire ?? (data.adf_pvalue < 0.05);
+    html = `
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;padding:14px 16px;background:${stationnaire?'var(--success-bg)':'var(--warning-bg)'};border-radius:var(--r-md);border:1px solid ${stationnaire?'#99F6E4':'#FCD34D'};">
+        <span style="font-size:24px;">${stationnaire ? '✅' : '⚠️'}</span>
+        <div>
+          <p style="font-weight:600;font-size:14px;color:${stationnaire?'var(--success)':'var(--warning)'};">
+            Série ${stationnaire ? 'stationnaire' : 'non stationnaire'}
+          </p>
+          <p style="font-size:12px;color:var(--text-2);margin-top:2px;">
+            ${stationnaire ? 'La série est prête pour la modélisation directe.' : 'Une différenciation est recommandée (d ≥ 1).'}
+          </p>
+        </div>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));">
+        ${data.adf_pvalue !== undefined ? `<div class="kpi-card" style="--kpi-c:var(--accent);"><div class="kpi-label">ADF p-value</div><div class="kpi-value" style="font-size:20px;">${(+data.adf_pvalue).toFixed(4)}</div></div>` : ''}
+        ${data.adf_statistic !== undefined ? `<div class="kpi-card" style="--kpi-c:var(--text-3);"><div class="kpi-label">ADF stat</div><div class="kpi-value" style="font-size:20px;">${(+data.adf_statistic).toFixed(4)}</div></div>` : ''}
+        ${data.n_diff !== undefined ? `<div class="kpi-card" style="--kpi-c:var(--warning);"><div class="kpi-label">Différenciations</div><div class="kpi-value" style="font-size:20px;">${data.n_diff}</div></div>` : ''}
+      </div>`;
+  }
+
+  else if (type === 'arima' || type === 'prophet') {
+    const predictions = data.predictions || data.forecast || [];
+    const dates = data.dates_futures || data.ds || [];
+
+    if (predictions.length > 0) {
+      html = `<div style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:10px;">Prévisions (${predictions.length} points)</div>
+        <canvas id="chart-series" height="120"></canvas>
+      </div>`;
+
+      // Paramètres modèle
+      if (data.ordre || data.aic !== undefined || data.mape !== undefined) {
+        html += `<div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:16px;">`;
+        if (data.ordre) html += `<div class="kpi-card" style="--kpi-c:var(--accent);"><div class="kpi-label">Ordre ARIMA</div><div class="kpi-value" style="font-size:16px;">${JSON.stringify(data.ordre)}</div></div>`;
+        if (data.aic !== undefined) html += `<div class="kpi-card" style="--kpi-c:var(--success);"><div class="kpi-label">AIC</div><div class="kpi-value" style="font-size:20px;">${(+data.aic).toFixed(2)}</div></div>`;
+        if (data.mape !== undefined) html += `<div class="kpi-card" style="--kpi-c:var(--warning);"><div class="kpi-label">MAPE</div><div class="kpi-value" style="font-size:20px;">${(+data.mape).toFixed(2)}%</div></div>`;
+        html += '</div>';
+      }
+    } else {
+      html = '<p style="color:var(--text-3);padding:20px;">Résultats reçus mais aucune prévision disponible.</p>';
+    }
+  }
+
+  zone.innerHTML = html || '<p style="color:var(--text-3);padding:20px;">Résultats reçus.</p>';
+
+  // Dessiner le chart si prévu
+  if ((type === 'arima' || type === 'prophet') && document.getElementById('chart-series')) {
+    const predictions = data.predictions || data.forecast || [];
+    const labels = data.dates_futures || predictions.map((_, i) => `t+${i+1}`);
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(document.getElementById('chart-series'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Prévisions',
+          data: predictions,
+          borderColor: '#2563EB',
+          backgroundColor: 'rgba(37,99,235,0.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { font: { family: 'DM Mono', size: 11 }, color: '#8C9BAD' } },
+          y: { ticks: { font: { family: 'DM Mono', size: 11 }, color: '#8C9BAD' } },
+        },
+      },
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('dataset_id')) document.getElementById('dataset-id').value = params.get('dataset_id');
+});
+</script>
+{% endblock %}

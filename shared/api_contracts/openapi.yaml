@@ -1,0 +1,61 @@
+﻿openapi: 3.0.3
+info:
+  title: CensusAnalyse — Contrats API
+  version: 1.0.0
+  description: |
+    Contrats entre les 3 services.
+    Chaque dev documente ses endpoints ici.
+
+servers:
+  - url: http://localhost:8001/api/v1
+    description: service_import (Dev 1)
+  - url: http://localhost:8002/api/v1
+    description: service_analyse (Dev 2)
+  - url: http://localhost:8003/api/v1
+    description: service_visu (Dev 3)
+
+paths:
+  # --- service_import ---
+  /upload/:
+    post:
+      summary: Upload CSV/Excel/Stata/SPSS
+      tags: [import]
+  /datasets/:
+    get:
+      summary: Liste des datasets
+      tags: [import]
+  /datasets/{id}/colonnes/:
+    get:
+      summary: Types de colonnes detectes
+      tags: [import]
+  /datasets/{id}/data/:
+    get:
+      summary: Donnees paginées
+      tags: [import]
+
+  # --- service_analyse ---
+  /stats/univarie/:
+    post:
+      summary: Stats descriptives univariées
+      tags: [analyse]
+  /tests/normalite/:
+    post:
+      summary: Test de normalite
+      tags: [analyse]
+  /series/prevision/:
+    post:
+      summary: Prevision ARIMA / Prophet
+      tags: [analyse]
+
+  # --- service_visu ---
+  /cartes/choropletre/:
+    post:
+      summary: Generer une choroplèthe
+      tags: [visu]
+  /dashboards/:
+    get:
+      summary: Liste des dashboards
+      tags: [visu]
+    post:
+      summary: Creer un dashboard
+      tags: [visu]

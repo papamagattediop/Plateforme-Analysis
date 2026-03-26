@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ dashboard.titre }} — CensusAnalyse</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f8fafc; color: #0f172a; }
+    .header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px 24px;
+              display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 15px; font-weight: 600; color: #1e293b; }
+    .header .meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .brand { font-size: 13px; font-weight: 700; color: #1e293b; text-decoration: none; }
+    .content { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .widgets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 16px;
+      align-items: start;  /* chaque carte prend sa propre hauteur */
+    }
+    .widget-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      /* hauteur auto selon contenu */
+    }
+    .widget-titre {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 12px;
+    }
+    .widget-chart {
+      /* pas de height fixe — s'adapte au canvas */
+      position: relative;
+    }
+    .widget-chart canvas {
+      width: 100% !important;
+      height: 260px !important;
+      display: block;
+    }
+    .widget-chart div {
+      overflow-x: auto;
+    }
+    .no-widgets { text-align: center; color: #94a3b8; padding: 48px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #f1f5f9; padding: 6px 10px; text-align: left;
+         border-bottom: 1px solid #e2e8f0; font-weight: 600; }
+    td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>{{ dashboard.titre }}</h1>
+    <div class="meta">
+      {{ dashboard.dataset_nom }} ·
+      {{ dashboard.nb_widgets }} widget(s) ·
+      {{ dashboard.updated_at|date:"d/m/Y" }}
+    </div>
+  </div>
+  <a class="brand" href="/">CensusAnalyse</a>
+</div>
+
+<div class="content">
+  {% if widgets %}
+    <div class="widgets-grid" id="widgets-grid">
+      {% for widget in widgets %}
+        <div class="widget-card">
+          <div class="widget-titre">{{ widget.titre }}</div>
+          <div class="widget-chart">
+            {% if widget.type_widget == 'table' %}
+              <div id="widget-{{ widget.id }}"></div>
+            {% else %}
+              <canvas id="widget-{{ widget.id }}"></canvas>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="no-widgets">Ce dashboard ne contient aucun widget.</div>
+  {% endif %}
+</div>
+
+<script>
+const DATASET_ID  = "{{ dashboard.dataset_id }}";
+const WIDGETS     = [
+  {% for w in widgets %}
+  {
+    id:         "{{ w.id }}",
+    type:       "{{ w.type_widget }}",
+    titre:      "{{ w.titre|escapejs }}",
+    variable_x: "{{ w.variable_x|escapejs }}",
+    variable_y: "{{ w.variable_y|escapejs }}",
+    filtres:    {{ w.filtres|safe }},
+  },
+  {% endfor %}
+];
+
+async function chargerWidgets() {
+  for (const w of WIDGETS) {
+    try {
+      const resp = await fetch('/api/v1/dashboards/graphique/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_id:  DATASET_ID,
+          type_widget: w.type,
+          variable_x:  w.variable_x,
+          variable_y:  w.variable_y || null,
+          titre:       w.titre,
+          filtres:     w.filtres,
+        }),
+      });
+
+      if (!resp.ok) continue;
+      const config = await resp.json();
+
+      if (config.type === 'table') {
+        const div = document.getElementById(`widget-${w.id}`);
+        if (div) {
+          const headers = config.colonnes.map(c => `<th>${c}</th>`).join('');
+          const rows    = config.lignes.map(r =>
+            `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`
+          ).join('');
+          div.innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+        }
+      } else {
+        const canvas = document.getElementById(`widget-${w.id}`);
+        if (canvas) {
+          new Chart(canvas, {
+            type:    config.type === 'histogram' ? 'bar' : config.type,
+            data:    config.data,
+            options: {
+              ...config.options,
+              responsive:          true,
+              maintainAspectRatio: false,
+              plugins: {
+                ...((config.options || {}).plugins || {}),
+                legend: {
+                  ...(((config.options || {}).plugins || {}).legend || {}),
+                  position: 'bottom',
+                  labels: { boxWidth: 12, padding: 12, font: { size: 11 } },
+                },
+              },
+            },
+          });
+        }
+      }
+    } catch (e) {
+      console.error(`Erreur widget ${w.id}:`, e);
+    }
+  }
+}
+
+chargerWidgets();
+</script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}CensusAnalyse · Statistiques{% endblock %}
+{% block breadcrumb %}<span class="bc-current">Statistiques descriptives</span>{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ SERVICE_IMPORT_URL }}/import/" class="btn btn-secondary btn-sm">
+    <svg viewBox="0 0 24 24" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Changer de dataset
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header animate-in">
+  <h1 class="page-title">Statistiques descriptives</h1>
+  <p class="page-desc">Analysez les distributions, corrélations et profils statistiques de votre dataset.</p>
+</div>
+
+<div class="split-layout">
+
+  <!-- ── Panneau gauche : Configuration ──────────────────────── -->
+  <aside>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          Configuration
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Dataset -->
+        <div class="panel-section">
+          <div class="panel-section-label">Dataset</div>
+          <div class="form-group">
+            <label class="form-label">ID du dataset</label>
+            <input type="number" id="dataset-id" class="form-control" placeholder="ex: 1" min="1">
+            <div class="form-hint">Trouvez l'ID dans le service Import.</div>
+          </div>
+          <button class="btn btn-secondary btn-sm btn-full" onclick="chargerColonnes()">
+            Charger les colonnes
+          </button>
+        </div>
+
+        <!-- Type d'analyse -->
+        <div class="panel-section">
+          <div class="panel-section-label">Type d'analyse</div>
+          <div class="type-selector" style="grid-template-columns: repeat(2,1fr);">
+            <button class="type-btn active" id="btn-univar" onclick="setType('univar')">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="18" y1="20" x2="18" y2="10"/></svg>
+              Univariée
+            </button>
+            <button class="type-btn" id="btn-bivar" onclick="setType('bivar')">
+              <svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="3"/><circle cx="15" cy="8" r="3"/><line x1="11" y1="11" x2="13" y2="9"/></svg>
+              Bivariée
+            </button>
+            <button class="type-btn" id="btn-groupe" onclick="setType('groupe')">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              Par groupe
+            </button>
+            <button class="type-btn" id="btn-contingence" onclick="setType('contingence')">
+              <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
+              Contingence
+            </button>
+          </div>
+        </div>
+
+        <!-- Colonne X -->
+        <div class="panel-section" id="section-col-x">
+          <div class="form-group">
+            <label class="form-label" id="label-col-x">Variable principale</label>
+            <select id="col-x" class="form-control">
+              <option value="">— Choisir une colonne —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Colonne Y (bivariée/groupe) -->
+        <div class="panel-section hidden" id="section-col-y">
+          <div class="form-group">
+            <label class="form-label" id="label-col-y">Variable secondaire</label>
+            <select id="col-y" class="form-control">
+              <option value="">— Choisir une colonne —</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="analyser()">
+          <svg viewBox="0 0 24 24" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Analyser
+        </button>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Zone principale : Résultats ─────────────────────────── -->
+  <div>
+    <div class="content-zone">
+      <div class="zone-topbar">
+        <div class="zone-label">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Résultats
+        </div>
+        <span id="result-badge" class="badge badge-gray hidden">univariée</span>
+      </div>
+
+      <div class="zone-body" id="result-zone">
+        <div class="loading-veil hidden" id="loading">
+          <div class="spin-ring"></div>
+          <p class="loading-text">Calcul en cours…</p>
+        </div>
+        <div class="ph-block" id="placeholder">
+          <div class="ph-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <p class="ph-title">Aucun résultat</p>
+          <p class="ph-sub">Chargez un dataset et lancez une analyse.</p>
+        </div>
+        <div id="result-content" class="hidden" style="width:100%;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/api/v1/';
+const IMPORT_API = '{{ SERVICE_IMPORT_URL }}/api/v1/';
+let colonnes = [];
+let typeAnalyse = 'univar';
+
+/* ── Charger colonnes depuis service_import ──────────────────── */
+async function chargerColonnes() {
+  const id = document.getElementById('dataset-id').value;
+  if (!id) { showToast('Entrez un ID de dataset.', 'error'); return; }
+
+  try {
+    const r = await fetch(IMPORT_API + `datasets/${id}/colonnes/`);
+    if (!r.ok) throw new Error('Dataset introuvable');
+    const data = await r.json();
+    colonnes = (data.data || data) || [];
+
+    remplirSelect('col-x', colonnes);
+    remplirSelect('col-y', colonnes);
+    showToast(`${colonnes.length} colonnes chargées.`, 'success');
+
+    // Mettre à jour le chip sidebar
+    const chip = document.getElementById('sidebar-ds-name');
+    if (chip) chip.textContent = `Dataset #${id} · ${colonnes.length} col.`;
+  } catch(e) {
+    showToast('Impossible de charger les colonnes : ' + e.message, 'error');
+  }
+}
+
+function remplirSelect(id, cols) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">— Choisir une colonne —</option>' +
+    cols.map(c => `<option value="${c.nom}" data-type="${c.type}">${c.nom} (${c.type})</option>`).join('');
+}
+
+/* ── Type d'analyse ──────────────────────────────────────────── */
+function setType(t) {
+  typeAnalyse = t;
+  ['univar','bivar','groupe','contingence'].forEach(k => {
+    document.getElementById(`btn-${k}`).classList.toggle('active', k === t);
+  });
+  const needY = ['bivar','groupe','contingence'].includes(t);
+  document.getElementById('section-col-y').classList.toggle('hidden', !needY);
+
+  const labels = {
+    univar: ['Variable à analyser', null],
+    bivar: ['Variable X (quantitative)', 'Variable Y (quantitative)'],
+    groupe: ['Variable quantitative', 'Variable de groupe'],
+    contingence: ['Variable A (qualitative)', 'Variable B (qualitative)'],
+  };
+  const [lx, ly] = labels[t];
+  document.getElementById('label-col-x').textContent = lx;
+  if (ly) document.getElementById('label-col-y').textContent = ly;
+}
+
+/* ── Analyser ────────────────────────────────────────────────── */
+async function analyser() {
+  const id = document.getElementById('dataset-id').value;
+  const colX = document.getElementById('col-x').value;
+  const colY = document.getElementById('col-y').value;
+
+  if (!id || !colX) { showToast('Sélectionnez un dataset et une variable.', 'error'); return; }
+
+  setLoading('loading', true);
+  document.getElementById('placeholder').classList.add('hidden');
+  document.getElementById('result-content').classList.add('hidden');
+
+  try {
+    let url, body;
+    switch(typeAnalyse) {
+      case 'univar':
+        url = API + 'univarie/'; body = { dataset_id: +id, colonne: colX }; break;
+      case 'bivar':
+        if (!colY) { showToast('Sélectionnez une variable Y.', 'error'); setLoading('loading', false); return; }
+        url = API + 'bivariee/'; body = { dataset_id: +id, col_x: colX, col_y: colY }; break;
+      case 'groupe':
+        if (!colY) { showToast('Sélectionnez un groupe.', 'error'); setLoading('loading', false); return; }
+        url = API + 'groupes/'; body = { dataset_id: +id, colonne: colX, col_groupe: colY }; break;
+      case 'contingence':
+        if (!colY) { showToast('Sélectionnez une variable B.', 'error'); setLoading('loading', false); return; }
+        url = API + 'contingence/'; body = { dataset_id: +id, col_x: colX, col_y: colY }; break;
+    }
+
+    const data = await apiPost(url, body);
+    setLoading('loading', false);
+    afficherResultats(data.data || data, typeAnalyse);
+    document.getElementById('result-badge').textContent = typeAnalyse;
+    document.getElementById('result-badge').classList.remove('hidden');
+  } catch(e) {
+    setLoading('loading', false);
+    document.getElementById('placeholder').classList.remove('hidden');
+    showToast('Erreur analyse : ' + e.message, 'error');
+  }
+}
+
+/* ── Affichage résultats ─────────────────────────────────────── */
+function afficherResultats(data, type) {
+  const zone = document.getElementById('result-content');
+  zone.classList.remove('hidden');
+  document.getElementById('placeholder').classList.add('hidden');
+
+  if (!data || Object.keys(data).length === 0) {
+    zone.innerHTML = '<p style="color:var(--text-3);text-align:center;padding:40px;">Aucun résultat disponible.</p>';
+    return;
+  }
+
+  // Transformer en tableau de KPIs + détails
+  const kpis = [];
+  const details = {};
+
+  for (const [k, v] of Object.entries(data)) {
+    if (typeof v === 'number') {
+      kpis.push({ label: k, value: typeof v === 'number' ? v.toLocaleString('fr-FR', {maximumFractionDigits:4}) : v });
+    } else if (typeof v === 'object' && v !== null) {
+      details[k] = v;
+    }
+  }
+
+  let html = '';
+
+  // KPIs numériques
+  if (kpis.length > 0) {
+    html += `<div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:20px;">`;
+    kpis.forEach((k, i) => {
+      const colors = ['var(--accent)','var(--success)','var(--warning)','#8B5CF6','#EC4899'];
+      html += `<div class="kpi-card" style="--kpi-c:${colors[i%colors.length]};">
+        <div class="kpi-label">${k.label.replace(/_/g,' ')}</div>
+        <div class="kpi-value" style="font-size:22px;">${k.value}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Tableaux des objets imbriqués
+  for (const [k, v] of Object.entries(details)) {
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      html += `<div style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:8px;">${k.replace(/_/g,' ')}</div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead><tr><th>Clé</th><th>Valeur</th></tr></thead>
+            <tbody>
+              ${Object.entries(v).map(([kk,vv]) => `<tr><td><code style="font-family:var(--font-mono);font-size:12px;">${kk}</code></td><td>${typeof vv==='number'?vv.toLocaleString('fr-FR',{maximumFractionDigits:4}):vv}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    } else if (Array.isArray(v)) {
+      html += `<div style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:8px;">${k.replace(/_/g,' ')}</div>
+        <p style="font-family:var(--font-mono);font-size:12px;color:var(--text-2);">[${v.slice(0,10).join(', ')}${v.length>10?'…':''}]</p>
+      </div>`;
+    }
+  }
+
+  zone.innerHTML = html || '<p style="color:var(--text-3);text-align:center;padding:20px;">Résultats reçus.</p>';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('dataset_id')) {
+    document.getElementById('dataset-id').value = params.get('dataset_id');
+    chargerColonnes();
+  }
+});
+</script>
+{% endblock %}

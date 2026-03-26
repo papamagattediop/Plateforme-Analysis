@@ -1,0 +1,368 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'dashboard/css/dashboard.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <span>Analyse</span>
+  <span class="bc-sep">›</span>
+  <span class="bc-current">Dashboard</span>
+{% endblock %}
+
+{% block topbar_actions %}
+  <span id="nb-widgets-badge" class="badge badge-blue" style="display:none">0 widget</span>
+  <button id="btn-pdf" class="btn btn-secondary btn-sm" style="display:none" onclick="exporterPDF()">
+    <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Export PDF
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">Dashboard builder</h1>
+  <p class="page-desc">
+    {% if dataset %}Construisez des visualisations pour <strong>{{ dataset.nom }}</strong>
+    {% else %}Créez des tableaux de bord interactifs depuis vos données{% endif %}
+  </p>
+</div>
+
+<div class="split-layout">
+
+  <!-- ── Panneau de configuration ─────────────────────────── -->
+  <aside>
+    <div class="panel animate-in" style="animation-delay:0.05s">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          Nouveau widget
+        </div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Type -->
+        <div class="panel-section">
+          <div class="panel-section-label">Type de graphique</div>
+          <div class="type-selector">
+            {% for val, label in types_graphiques %}
+            <button class="type-btn {% if val == 'bar' %}active{% endif %}"
+                    data-type="{{ val }}" onclick="selectType(this)">
+              {% if val == 'bar' %}
+                <svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="3" width="4" height="18"/></svg>
+              {% elif val == 'line' %}
+                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              {% elif val == 'pie' %}
+                <svg viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+              {% elif val == 'scatter' %}
+                <svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="2"/><circle cx="17" cy="8" r="2"/><circle cx="9" cy="16" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+              {% elif val == 'histogram' %}
+                <svg viewBox="0 0 24 24"><rect x="2" y="14" width="4" height="7"/><rect x="7" y="8" width="4" height="13"/><rect x="12" y="4" width="4" height="17"/><rect x="17" y="10" width="4" height="11"/></svg>
+              {% elif val == 'table' %}
+                <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+              {% else %}
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              {% endif %}
+              {{ label }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Variable X -->
+        <div class="panel-section">
+          <div class="panel-section-label">Variable X</div>
+          <select id="sel-x" class="form-control">
+            <option value="">— Choisir —</option>
+            {% for col in colonnes %}
+              <option value="{{ col.nom }}" data-type="{{ col.type_detecte }}">{{ col.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Variable Y -->
+        <div class="panel-section" id="grp-y">
+          <div class="panel-section-label">Variable Y (optionnel)</div>
+          <select id="sel-y" class="form-control">
+            <option value="">— Choisir —</option>
+            {% for col in colonnes %}
+              {% if col.type_detecte == 'quantitative_continue' or col.type_detecte == 'quantitative_discrete' %}
+                <option value="{{ col.nom }}">{{ col.nom }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Titre -->
+        <div class="panel-section">
+          <div class="panel-section-label">Titre du widget</div>
+          <input type="text" id="inp-titre" class="form-control" placeholder="ex: Population par région">
+        </div>
+
+        <!-- Filtre -->
+        <div class="panel-section">
+          <div class="panel-section-label">Filtre (optionnel)</div>
+          <select id="sel-filtre-col" class="form-control" style="margin-bottom:6px">
+            <option value="">— Colonne à filtrer —</option>
+            {% for col in colonnes %}
+              <option value="{{ col.nom }}">{{ col.nom }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="inp-filtre-val" class="form-control" placeholder="Valeur">
+        </div>
+
+        <!-- Actions widget -->
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+          <button class="btn btn-secondary btn-full" onclick="previsualiser()">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Prévisualiser
+          </button>
+          <button class="btn btn-primary btn-full" onclick="ajouterWidget()">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter au dashboard
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Nom dashboard -->
+        <div class="panel-section">
+          <div class="panel-section-label">Nom du dashboard</div>
+          <input type="text" id="inp-dashboard-nom" class="form-control"
+                 value="Mon dashboard" placeholder="Nom du dashboard">
+        </div>
+
+        <!-- Sauvegarder -->
+        <button class="btn btn-success btn-full" onclick="sauvegarderDashboard()">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Sauvegarder le dashboard
+        </button>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Zone principale ───────────────────────────────────── -->
+  <div>
+
+    <!-- Prévisualisation -->
+    <div class="preview-shell animate-in" style="animation-delay:0.1s">
+      <div class="preview-bar">
+        <div class="preview-tag">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Prévisualisation
+        </div>
+      </div>
+      <div class="preview-canvas" id="preview-canvas">
+        <div id="loading-preview" class="loading-veil hidden">
+          <div class="spin-ring"></div>
+          <span class="loading-text">Génération…</span>
+        </div>
+        <div id="ph-preview" class="ph-block">
+          <div class="ph-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <p class="ph-title">Aucun graphique</p>
+          <p class="ph-sub">Configurez un widget à gauche puis cliquez sur Prévisualiser</p>
+        </div>
+        <canvas id="preview-chart" style="display:none;max-height:300px;width:100%"></canvas>
+        <div id="preview-table" style="display:none;width:100%;overflow-x:auto"></div>
+      </div>
+    </div>
+
+    <!-- Widgets ajoutés -->
+    <div id="widgets-section" style="display:none" class="animate-in">
+      <div class="section-head">
+        <span class="section-label">Widgets du dashboard</span>
+        <button class="btn btn-ghost btn-sm" onclick="viderDashboard()">
+          <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Tout vider
+        </button>
+      </div>
+      <div class="widgets-builder-grid" id="widgets-grid"></div>
+    </div>
+
+    <!-- Share bar -->
+    <div id="share-bar" class="share-bar hidden">
+      <div class="share-bar-label">
+        <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Dashboard sauvegardé
+      </div>
+      <input type="text" id="share-input" class="share-input" readonly>
+      <button class="btn btn-success btn-sm" onclick="copierShareLink()">Copier</button>
+      <a id="share-open" href="#" target="_blank" class="btn btn-secondary btn-sm">Ouvrir</a>
+    </div>
+
+    <!-- Dashboards récents -->
+    {% if dashboards_recents %}
+    <div style="margin-top:24px" class="animate-in" style="animation-delay:0.15s">
+      <div class="section-head">
+        <span class="section-label">Dashboards récents</span>
+      </div>
+      <div class="items-grid">
+        {% for d in dashboards_recents %}
+          <div class="item-card" onclick="window.location.href='/dashboard/{{ d.id }}/'">
+            <div class="item-type">{{ d.nb_widgets }} widget{% if d.nb_widgets > 1 %}s{% endif %}</div>
+            <div class="item-name">{{ d.titre }}</div>
+            <div class="item-meta">{{ d.dataset_nom }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const DATASET_ID = "{{ dataset_id }}";
+let typeWidget = 'bar';
+let previewChart = null;
+let widgets = [];
+let dashboardId = null;
+
+function selectType(btn) {
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  typeWidget = btn.dataset.type;
+  document.getElementById('grp-y').style.display = typeWidget === 'histogram' ? 'none' : '';
+}
+
+async function previsualiser() {
+  if (!DATASET_ID) { showToast('Aucun dataset sélectionné', 'error'); return; }
+  const varX = document.getElementById('sel-x').value;
+  if (!varX) { showToast('Choisissez une variable X', 'error'); return; }
+
+  setLoading('loading-preview', true);
+
+  const body = {
+    dataset_id: DATASET_ID,
+    type_widget: typeWidget,
+    variable_x: varX,
+    variable_y: document.getElementById('sel-y').value || null,
+    titre: document.getElementById('inp-titre').value,
+    filtres: _getFiltres(),
+  };
+
+  try {
+    const config = await apiPost('/api/v1/dashboards/graphique/', body);
+    _afficherPreview(config);
+  } catch (e) {
+    showToast('Erreur : ' + e.message, 'error');
+  } finally {
+    setLoading('loading-preview', false);
+  }
+}
+
+function _afficherPreview(config) {
+  document.getElementById('ph-preview').classList.add('hidden');
+  const canvas = document.getElementById('preview-chart');
+  const tableDiv = document.getElementById('preview-table');
+
+  if (config.type === 'table') {
+    canvas.style.display = 'none';
+    tableDiv.style.display = 'block';
+    const heads = config.colonnes.map(c => `<th>${c}</th>`).join('');
+    const rows = config.lignes.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+    tableDiv.innerHTML = `<table class="data-table"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><p class="table-note">${config.nb_total} lignes — 50 affichées</p>`;
+    return;
+  }
+
+  canvas.style.display = 'block';
+  tableDiv.style.display = 'none';
+  if (previewChart) previewChart.destroy();
+  previewChart = new Chart(canvas, {
+    type: config.type === 'histogram' ? 'bar' : config.type,
+    data: config.data,
+    options: { ...config.options, responsive: true, maintainAspectRatio: false },
+  });
+}
+
+function ajouterWidget() {
+  const varX = document.getElementById('sel-x').value;
+  if (!varX) { showToast('Prévisualisez d\'abord le graphique', 'error'); return; }
+
+  const widget = {
+    type_widget: typeWidget,
+    titre: document.getElementById('inp-titre').value || typeWidget,
+    variable_x: varX,
+    variable_y: document.getElementById('sel-y').value || '',
+    filtres: _getFiltres(),
+    position: widgets.length,
+  };
+
+  widgets.push(widget);
+  _renderWidgets();
+  showToast('Widget ajouté !', 'success');
+}
+
+function _renderWidgets() {
+  const section = document.getElementById('widgets-section');
+  const grid = document.getElementById('widgets-grid');
+  const badge = document.getElementById('nb-widgets-badge');
+  const btnPDF = document.getElementById('btn-pdf');
+
+  section.style.display = widgets.length ? 'block' : 'none';
+  if (badge) { badge.textContent = `${widgets.length} widget${widgets.length > 1 ? 's' : ''}`; badge.style.display = widgets.length ? 'inline-flex' : 'none'; }
+  if (btnPDF) btnPDF.style.display = dashboardId && widgets.length ? 'inline-flex' : 'none';
+
+  grid.innerHTML = widgets.map((w, i) => `
+    <div class="w-card">
+      <div class="w-info">
+        <div class="w-type">${w.type_widget}</div>
+        <div class="w-name">${w.titre || w.variable_x}</div>
+        <div class="w-vars">x:${w.variable_x}${w.variable_y ? ' · y:'+w.variable_y : ''}</div>
+      </div>
+      <button class="w-remove" onclick="retirerWidget(${i})" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+}
+
+function retirerWidget(i) { widgets.splice(i,1); _renderWidgets(); }
+function viderDashboard() { widgets = []; _renderWidgets(); }
+
+async function sauvegarderDashboard() {
+  if (!DATASET_ID) { showToast('Aucun dataset sélectionné', 'error'); return; }
+  if (!widgets.length) { showToast('Ajoutez au moins un widget', 'error'); return; }
+
+  const titre = document.getElementById('inp-dashboard-nom').value.trim() || 'Mon dashboard';
+
+  try {
+    const dash = await apiPost('/api/v1/dashboards/', {
+      dataset_id: DATASET_ID,
+      dataset_nom: '{{ dataset.nom|default:"" }}',
+      titre,
+    });
+    dashboardId = dash.id;
+
+    for (const w of widgets) {
+      await apiPost(`/api/v1/dashboards/${dashboardId}/widgets/`, w);
+    }
+
+    afficherShareBar(dash.share_token, 'dashboard');
+    document.getElementById('btn-pdf').style.display = 'inline-flex';
+    showToast('Dashboard sauvegardé !', 'success');
+  } catch (e) {
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+function exporterPDF() {
+  if (!dashboardId) return;
+  window.open(`/api/v1/dashboards/${dashboardId}/export/pdf/`, '_blank');
+}
+
+function _getFiltres() {
+  const col = document.getElementById('sel-filtre-col').value;
+  const val = document.getElementById('inp-filtre-val').value;
+  return col && val ? { [col]: val } : {};
+}
+</script>
+{% endblock %}

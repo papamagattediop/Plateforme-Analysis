@@ -1,0 +1,158 @@
+/* ============================================================
+   Dashboard builder — styles spécifiques
+   Complète main.css pour les pages dashboard/
+   ============================================================ */
+
+/* ── Séparateur sidebar ───────────────────────────────────── */
+.sep-line {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 12px 0;
+}
+
+/* ── Zone de prévisualisation ─────────────────────────────── */
+.preview-zone {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.preview-container {
+  padding: 16px;
+  min-height: 360px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Section widgets ──────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+/* ── Widget card dans le builder ──────────────────────────── */
+.widget-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  position: relative;
+}
+
+.widget-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.widget-type-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.widget-titre {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e293b;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-icon-remove {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-icon-remove:hover {
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.widget-card-meta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* ── Tableau de données ───────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th {
+  background: #f1f5f9;
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+  color: #374151;
+}
+
+.data-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid #f8fafc;
+  color: #0f172a;
+}
+
+.data-table tr:hover td {
+  background: #f8fafc;
+}
+
+.table-info {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 6px;
+  text-align: right;
+}
