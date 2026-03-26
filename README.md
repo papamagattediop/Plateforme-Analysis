@@ -292,6 +292,8 @@ DEBUG=True
 
 ---
 
-## Auteur
+## Auteurs
 
-**Papa Magatte Diop** — ENSAE Dakar, Cycle AS3
+**Papa Magatte Diop** 
+**Fatoumatou BAH**
+**Ndaosna Armand Djekombe**
