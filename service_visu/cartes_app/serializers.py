@@ -31,7 +31,7 @@ class CarteDetailSerializer(CarteGenereeSerializer):
 # ── Serializers de requête ────────────────────────────────────────────────────
 
 class ChroropletrRequestSerializer(serializers.Serializer):
-    dataset_id  = serializers.UUIDField()
+    dataset_id  = serializers.CharField(max_length=255)
     variable    = serializers.CharField(max_length=255)
     colonne_geo = serializers.CharField(max_length=255)
     geojson_nom = serializers.CharField(max_length=255)
@@ -51,7 +51,7 @@ class ChroropletrRequestSerializer(serializers.Serializer):
 
 
 class HeatmapRequestSerializer(serializers.Serializer):
-    dataset_id    = serializers.UUIDField()
+    dataset_id    = serializers.CharField(max_length=255)
     col_lat       = serializers.CharField(max_length=255)
     col_lon       = serializers.CharField(max_length=255)
     col_intensite = serializers.CharField(
@@ -66,7 +66,7 @@ class HeatmapRequestSerializer(serializers.Serializer):
 
 
 class PointsRequestSerializer(serializers.Serializer):
-    dataset_id  = serializers.UUIDField()
+    dataset_id  = serializers.CharField(max_length=255)
     col_lat     = serializers.CharField(max_length=255)
     col_lon     = serializers.CharField(max_length=255)
     col_label   = serializers.CharField(
@@ -85,7 +85,7 @@ class PointsRequestSerializer(serializers.Serializer):
 
 
 class ComparaisonRequestSerializer(serializers.Serializer):
-    dataset_id      = serializers.UUIDField()
+    dataset_id      = serializers.CharField(max_length=255)
     variable_gauche = serializers.CharField(max_length=255)
     variable_droite = serializers.CharField(max_length=255)
     colonne_geo     = serializers.CharField(max_length=255)

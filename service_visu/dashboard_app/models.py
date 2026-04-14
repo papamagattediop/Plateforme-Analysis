@@ -44,6 +44,7 @@ class Widget(models.Model):
         ('scatter',   'Nuage de points'),
         ('histogram', 'Histogramme'),
         ('heatmap',   'Heatmap'),
+        ('pyramid',   'Pyramide des âges'),
         ('table',     'Tableau'),
         ('carte',     'Carte Folium'),
     ]

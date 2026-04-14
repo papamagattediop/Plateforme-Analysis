@@ -210,7 +210,7 @@ def detect_types(df: pd.DataFrame) -> dict:
             continue
 
         # ── Tentative de conversion datetime sur les colonnes texte ──
-        if serie.dtype == object:
+        if pd.api.types.is_string_dtype(serie) or serie.dtype == object:
             # Vérification rapide par regex avant d'appeler pd.to_datetime
             sample = serie.head(20).astype(str)
             import re

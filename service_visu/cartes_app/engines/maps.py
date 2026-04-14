@@ -1,22 +1,82 @@
-﻿"""
-Moteur de génération de cartes — Folium.
 """
-import pandas as pd
+Moteur de generation de cartes Folium.
+"""
+import re
+import unicodedata
+
 import folium
-from folium.plugins import HeatMap, MarkerCluster
+import pandas as pd
 from branca.colormap import LinearColormap
+from folium.plugins import HeatMap, MarkerCluster
 
 
 PALETTES = {
-    'bleu':   ['#EFF6FF', '#BFDBFE', '#60A5FA', '#2563EB', '#1E3A8A'],
-    'vert':   ['#F0FDF4', '#BBF7D0', '#4ADE80', '#16A34A', '#14532D'],
-    'rouge':  ['#FFF1F2', '#FECDD3', '#FB7185', '#E11D48', '#881337'],
+    'bleu': ['#EFF6FF', '#BFDBFE', '#60A5FA', '#2563EB', '#1E3A8A'],
+    'vert': ['#F0FDF4', '#BBF7D0', '#4ADE80', '#16A34A', '#14532D'],
+    'rouge': ['#FFF1F2', '#FECDD3', '#FB7185', '#E11D48', '#881337'],
     'orange': ['#FFFBEB', '#FDE68A', '#FBBF24', '#D97706', '#78350F'],
     'violet': ['#F5F3FF', '#DDD6FE', '#A78BFA', '#7C3AED', '#3B0764'],
 }
 
 SENEGAL_BOUNDS = [[12.3, -17.5], [16.6, -11.4]]
 SENEGAL_CENTER = [14.4974, -14.4524]
+
+MOJIBAKE_REPLACEMENTS = {
+    'Ã¨': 'e',
+    'Ã©': 'e',
+    'Ãª': 'e',
+    'Ã«': 'e',
+    'Ã ': 'a',
+    'Ã¢': 'a',
+    'Ã®': 'i',
+    'Ã¯': 'i',
+    'Ã´': 'o',
+    'Ã¶': 'o',
+    'Ã¹': 'u',
+    'Ã»': 'u',
+    'Ã¼': 'u',
+    'Ã§': 'c',
+}
+
+
+def _corriger_texte_mal_encode(texte) -> str:
+    valeur = '' if texte is None else str(texte)
+    for source, cible in MOJIBAKE_REPLACEMENTS.items():
+        valeur = valeur.replace(source, cible)
+    return valeur
+
+
+def _normaliser_modalite_geo(valeur) -> str:
+    texte = _corriger_texte_mal_encode(valeur).strip().lower()
+    texte = unicodedata.normalize('NFKD', texte)
+    texte = ''.join(caractere for caractere in texte if not unicodedata.combining(caractere))
+    texte = re.sub(r'[^a-z0-9]+', ' ', texte)
+    return re.sub(r'\s+', ' ', texte).strip()
+
+
+def _preparer_jointure_geo(df: pd.DataFrame, colonne_geo: str, variable: str) -> pd.DataFrame:
+    df_work = df.copy()
+    df_work[colonne_geo] = df_work[colonne_geo].apply(_corriger_texte_mal_encode)
+    df_work[variable] = pd.to_numeric(df_work[variable], errors='coerce')
+    df_work = df_work.dropna(subset=[colonne_geo, variable])
+
+    if df_work.empty:
+        return pd.DataFrame(columns=[colonne_geo, variable, '_geo_key'])
+
+    df_work['_geo_key'] = df_work[colonne_geo].apply(_normaliser_modalite_geo)
+    df_work = df_work[df_work['_geo_key'] != '']
+
+    if df_work.empty:
+        return pd.DataFrame(columns=[colonne_geo, variable, '_geo_key'])
+
+    return (
+        df_work
+        .groupby('_geo_key', as_index=False)
+        .agg({
+            variable: 'mean',
+            colonne_geo: lambda valeurs: valeurs.mode().iloc[0] if not valeurs.mode().empty else valeurs.iloc[0],
+        })
+    )
 
 
 def generer_choropletre(
@@ -29,27 +89,42 @@ def generer_choropletre(
     titre: str = None,
     annee: str = None,
 ) -> str:
+    df = df.copy()
 
-    # Filtrer par année si demandé
     if annee and 'annee' in df.columns:
         df = df[df['annee'].astype(str) == str(annee)]
 
-    # Agréger
-    df[variable] = pd.to_numeric(df[variable], errors='coerce')
-    df_agg = df.groupby(colonne_geo)[variable].mean().reset_index()
+    df_agg = _preparer_jointure_geo(df, colonne_geo, variable)
 
     if df_agg.empty:
-        raise ValueError(f"Aucune donnée pour '{variable}'")
+        raise ValueError(f"Aucune donnee pour '{variable}'")
+
+    geojson_keys = {
+        _normaliser_modalite_geo(feature.get('properties', {}).get(cle_join, ''))
+        for feature in geojson_data.get('features', [])
+    }
+    geojson_keys.discard('')
+
+    cles_communes = set(df_agg['_geo_key']) & geojson_keys
+    if not cles_communes:
+        modalites_df = sorted(df_agg[colonne_geo].dropna().astype(str).unique())[:8]
+        modalites_geo = sorted(
+            str(feature.get('properties', {}).get(cle_join, ''))
+            for feature in geojson_data.get('features', [])
+            if feature.get('properties', {}).get(cle_join)
+        )[:8]
+        raise ValueError(
+            "Aucune modalite de la colonne geographique ne correspond au GeoJSON. "
+            f"Exemples dataset: {modalites_df}. Exemples GeoJSON: {modalites_geo}."
+        )
 
     val_min = float(df_agg[variable].min())
     val_max = float(df_agg[variable].max())
     if val_min == val_max:
         val_max = val_min + 1
 
-    # Détecter si les valeurs sont "grandes" (absolues > 2 chiffres)
     valeurs_grandes = val_max >= 100
 
-    # ── Carte ─────────────────────────────────────────────────────────────────
     carte = folium.Map(
         location=SENEGAL_CENTER,
         zoom_start=7,
@@ -58,10 +133,9 @@ def generer_choropletre(
         max_zoom=10,
         max_bounds=True,
         scrollWheelZoom=False,
-        zoom_control=False,   # on remet un zoom custom
+        zoom_control=False,
     )
 
-    # Fond clair sans labels de villes
     folium.TileLayer(
         tiles='https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png',
         attr='&copy; CARTO',
@@ -72,7 +146,6 @@ def generer_choropletre(
 
     carte.fit_bounds(SENEGAL_BOUNDS)
 
-    # ── Colormap en 5 plages max ───────────────────────────────────────────────
     couleurs = PALETTES.get(palette, PALETTES['bleu'])
     colormap = LinearColormap(
         colors=couleurs,
@@ -84,24 +157,24 @@ def generer_choropletre(
 
     def get_couleur(feature):
         region_nom = feature['properties'].get(cle_join, '')
-        ligne = df_agg[df_agg[colonne_geo] == region_nom]
+        cle_normalisee = _normaliser_modalite_geo(region_nom)
+        ligne = df_agg[df_agg['_geo_key'] == cle_normalisee]
         if ligne.empty or pd.isna(ligne[variable].values[0]):
             return '#E5E2DB'
         return colormap(float(ligne[variable].values[0]))
 
-    # ── GeoJSON ───────────────────────────────────────────────────────────────
     folium.GeoJson(
         geojson_data,
-        name='Régions',
+        name='Regions',
         style_function=lambda feature: {
-            'fillColor':   get_couleur(feature),
-            'color':       '#FFFFFF',
-            'weight':      2,
+            'fillColor': get_couleur(feature),
+            'color': '#FFFFFF',
+            'weight': 2,
             'fillOpacity': 0.85,
         },
         tooltip=folium.GeoJsonTooltip(
             fields=[cle_join],
-            aliases=['Région :'],
+            aliases=['Region :'],
             localize=True,
             sticky=True,
             style=(
@@ -117,18 +190,12 @@ def generer_choropletre(
         },
     ).add_to(carte)
 
-    # ── Labels sur la carte (seulement si valeurs courtes) ────────────────────
     if not valeurs_grandes:
         _ajouter_labels_regions(carte, df_agg, colonne_geo, variable, geojson_data, cle_join)
 
-    # ── Légende 5 plages (en haut à droite) ───────────────────────────────────
     _ajouter_legende_plages(carte, df_agg, variable, val_min, val_max, couleurs, titre)
-
-    # ── Flèche Nord (haut gauche) ─────────────────────────────────────────────
     _ajouter_fleche_nord(carte)
 
-    # ── Barre d'échelle (bas gauche via CSS) ──────────────────────────────────
-    # Leaflet scale est déjà en bas à gauche par défaut
     folium.plugins.MeasureControl(
         position='bottomleft',
         primary_length_unit='kilometers',
@@ -136,14 +203,12 @@ def generer_choropletre(
         primary_area_unit='sqkilometers',
     ).add_to(carte)
 
-    # ── CSS global ────────────────────────────────────────────────────────────
     _injecter_css(carte)
 
     return carte._repr_html_()
 
 
 def _ajouter_legende_plages(carte, df_agg, variable, val_min, val_max, couleurs, titre):
-    """Légende 5 plages en haut à droite."""
     step = (val_max - val_min) / 5
     plages = []
     for i in range(5):
@@ -151,11 +216,11 @@ def _ajouter_legende_plages(carte, df_agg, variable, val_min, val_max, couleurs,
         borne_haut = val_min + (i + 1) * step
         couleur = couleurs[i] if i < len(couleurs) else couleurs[-1]
         if val_max >= 1000:
-            label = f'{borne_bas:,.0f} – {borne_haut:,.0f}'
+            label = f'{borne_bas:,.0f} - {borne_haut:,.0f}'
         elif val_max >= 100:
-            label = f'{borne_bas:.0f} – {borne_haut:.0f}'
+            label = f'{borne_bas:.0f} - {borne_haut:.0f}'
         else:
-            label = f'{borne_bas:.1f} – {borne_haut:.1f}'
+            label = f'{borne_bas:.1f} - {borne_haut:.1f}'
         plages.append((couleur, label))
 
     items_html = ''.join([
@@ -190,7 +255,6 @@ def _ajouter_legende_plages(carte, df_agg, variable, val_min, val_max, couleurs,
 
 
 def _ajouter_fleche_nord(carte):
-    """Flèche Nord en haut à gauche."""
     fleche_html = """
     <div id="fleche-nord" style="
         position:absolute;
@@ -216,11 +280,11 @@ def _ajouter_fleche_nord(carte):
 
 
 def _ajouter_labels_regions(carte, df_agg, colonne_geo, variable, geojson_data, cle_join):
-    """Labels nom région + valeur au centre — seulement pour valeurs courtes."""
     try:
         for feature in geojson_data.get('features', []):
             region_nom = feature['properties'].get(cle_join, '')
-            ligne = df_agg[df_agg[colonne_geo] == region_nom]
+            cle_normalisee = _normaliser_modalite_geo(region_nom)
+            ligne = df_agg[df_agg['_geo_key'] == cle_normalisee]
 
             if ligne.empty:
                 continue
@@ -229,7 +293,7 @@ def _ajouter_labels_regions(carte, df_agg, colonne_geo, variable, geojson_data, 
             if pd.isna(valeur):
                 continue
 
-            coords    = feature['geometry'].get('coordinates', [])
+            coords = feature['geometry'].get('coordinates', [])
             geom_type = feature['geometry'].get('type', '')
 
             if geom_type == 'Polygon' and coords:
@@ -268,17 +332,14 @@ def _ajouter_labels_regions(carte, df_agg, colonne_geo, variable, geojson_data, 
 
 
 def _injecter_css(carte):
-    """CSS global : fond blanc, légende compacte, barre d'échelle."""
     css = """
     <style>
         .leaflet-container {
             background: #F8F7F4 !important;
         }
-        /* Masquer la colormap branca (on a notre propre légende) */
         .legend.leaflet-control {
             display: none !important;
         }
-        /* Barre d'échelle : style épuré */
         .leaflet-control-scale-line {
             background: rgba(255,255,255,0.92) !important;
             border: 1px solid #E5E2DB !important;
@@ -288,7 +349,6 @@ def _injecter_css(carte):
             color: #4A5568 !important;
             padding: 2px 6px !important;
         }
-        /* Zoom control */
         .leaflet-control-zoom {
             border: 1px solid #E5E2DB !important;
             border-radius: 8px !important;
@@ -303,7 +363,6 @@ def _injecter_css(carte):
             background: #EFF6FF !important;
             color: #2563EB !important;
         }
-        /* Masquer attribution Leaflet et CARTO */
         .leaflet-control-attribution {
             display: none !important;
         }
@@ -312,7 +371,6 @@ def _injecter_css(carte):
     carte.get_root().html.add_child(folium.Element(css))
 
 
-# ── Heatmap ───────────────────────────────────────────────────────────────────
 def generer_heatmap(
     df: pd.DataFrame,
     col_lat: str,
@@ -320,12 +378,13 @@ def generer_heatmap(
     col_intensite: str = None,
     titre: str = None,
 ) -> str:
+    df = df.copy()
     df[col_lat] = pd.to_numeric(df[col_lat], errors='coerce')
     df[col_lon] = pd.to_numeric(df[col_lon], errors='coerce')
     df = df.dropna(subset=[col_lat, col_lon])
 
     if df.empty:
-        raise ValueError("Aucune coordonnée GPS valide")
+        raise ValueError("Aucune coordonnee GPS valide")
 
     carte = folium.Map(
         location=[df[col_lat].mean(), df[col_lon].mean()],
@@ -341,14 +400,15 @@ def generer_heatmap(
 
     HeatMap(
         heat_data,
-        radius=15, blur=10, min_opacity=0.3,
+        radius=15,
+        blur=10,
+        min_opacity=0.3,
         gradient={0.4: '#3B82F6', 0.65: '#8B5CF6', 1.0: '#EF4444'},
     ).add_to(carte)
 
     return carte._repr_html_()
 
 
-# ── Carte de points ───────────────────────────────────────────────────────────
 def generer_carte_points(
     df: pd.DataFrame,
     col_lat: str,
@@ -357,19 +417,21 @@ def generer_carte_points(
     col_couleur: str = None,
     titre: str = None,
 ) -> str:
+    df = df.copy()
     df[col_lat] = pd.to_numeric(df[col_lat], errors='coerce')
     df[col_lon] = pd.to_numeric(df[col_lon], errors='coerce')
     df = df.dropna(subset=[col_lat, col_lon])
 
     if df.empty:
-        raise ValueError("Aucune coordonnée GPS valide")
+        raise ValueError("Aucune coordonnee GPS valide")
 
     if len(df) > 5000:
         df = df.sample(5000, random_state=42)
 
     carte = folium.Map(
         location=[df[col_lat].mean(), df[col_lon].mean()],
-        zoom_start=7, tiles='CartoDB positron',
+        zoom_start=7,
+        tiles='CartoDB positron',
     )
 
     cluster = MarkerCluster(name='Points').add_to(carte)
@@ -383,8 +445,12 @@ def generer_carte_points(
 
         folium.CircleMarker(
             location=[row[col_lat], row[col_lon]],
-            radius=6, color='#2563EB', fill=True,
-            fill_color='#3B82F6', fill_opacity=0.7, weight=1,
+            radius=6,
+            color='#2563EB',
+            fill=True,
+            fill_color='#3B82F6',
+            fill_opacity=0.7,
+            weight=1,
             popup=folium.Popup(popup_html, max_width=200) if popup_html else None,
             tooltip=str(row[col_label]) if col_label and col_label in row.index else None,
         ).add_to(cluster)
@@ -392,7 +458,6 @@ def generer_carte_points(
     return carte._repr_html_()
 
 
-# ── Comparaison 2 cartes ──────────────────────────────────────────────────────
 def generer_comparaison(
     df: pd.DataFrame,
     variable_gauche: str,
@@ -403,18 +468,26 @@ def generer_comparaison(
     palette: str = 'bleu',
 ) -> dict:
     html_g = generer_choropletre(
-        df=df.copy(), variable=variable_gauche, colonne_geo=colonne_geo,
-        geojson_data=geojson_data, cle_join=cle_join,
-        palette=palette, titre=variable_gauche,
+        df=df.copy(),
+        variable=variable_gauche,
+        colonne_geo=colonne_geo,
+        geojson_data=geojson_data,
+        cle_join=cle_join,
+        palette=palette,
+        titre=variable_gauche,
     )
     html_d = generer_choropletre(
-        df=df.copy(), variable=variable_droite, colonne_geo=colonne_geo,
-        geojson_data=geojson_data, cle_join=cle_join,
-        palette=palette, titre=variable_droite,
+        df=df.copy(),
+        variable=variable_droite,
+        colonne_geo=colonne_geo,
+        geojson_data=geojson_data,
+        cle_join=cle_join,
+        palette=palette,
+        titre=variable_droite,
     )
     return {
-        'carte_gauche':    html_g,
-        'carte_droite':    html_d,
+        'carte_gauche': html_g,
+        'carte_droite': html_d,
         'variable_gauche': variable_gauche,
         'variable_droite': variable_droite,
     }

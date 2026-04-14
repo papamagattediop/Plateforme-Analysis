@@ -1,278 +1,108 @@
 # CensusAnalyse
 
-Plateforme d'analyse de données de recensement construite sur une architecture **microservices Django**. Elle permet l'ingestion de fichiers de données, l'analyse statistique avancée et la visualisation interactive (cartes choroplèthes, dashboards) — le tout via une API REST unifiée.
+![CensusAnalyse](https://img.shields.io/badge/CensusAnalyse-Django%20Microservices-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+Plateforme d’analyse des données de recensement construite avec une architecture **microservices Django**. CensusAnalyse permet l’ingestion de fichiers, l’analyse statistique avancée et la visualisation interactive via des dashboards et des cartes.
 
 ---
 
-## Architecture générale
+## À propos
 
+CensusAnalyse est un écosystème de trois services Django indépendants :
+
+- `service_import` pour l’ingestion de données et les exports
+- `service_analyse` pour les statistiques et les séries temporelles
+- `service_visu` pour les cartes et les dashboards interactifs
+
+L’architecture est conçue pour un déploiement Docker avec PostgreSQL, Redis et Celery, tout en restant exécutable en local en mode développement avec SQLite.
+
+---
+
+## Architecture globale
+
+```text
+CLIENT (Browser)
+   │       │       │
+   │       │       ├── service_visu (8003)
+   │       ├── service_analyse (8002)
+   └── service_import (8001)
+
+service_import -> PostgreSQL import
+service_analyse -> PostgreSQL analyse
+service_visu -> PostgreSQL visu
+
+Redis + Celery gèrent le traitement asynchrone des imports.
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLIENT (Browser)                     │
-└────────────┬─────────────────┬───────────────┬─────────────┘
-             │                 │               │
-      :8001  │          :8002  │        :8003  │
-┌────────────▼───┐  ┌──────────▼──────┐  ┌────▼──────────────┐
-│ service_import │  │ service_analyse │  │   service_visu    │
-│   (Dev 1)      │◄─┤   (Dev 2)       │◄─┤   (Dev 3)         │
-│                │  │                 │  │                   │
-│  import_app    │  │  stats_app      │  │  dashboard_app    │
-│                │  │  series_app     │  │  cartes_app       │
-│                │  │  tests_stat_app │  │                   │
-└───────┬────────┘  └────────┬────────┘  └─────────┬─────────┘
-        │                    │                      │
-   ┌────▼────┐          ┌────▼────┐           ┌────▼────┐
-   │  PG DB  │          │  PG DB  │           │  PG DB  │
-   │ import  │          │ analyse │           │  visu   │
-   └─────────┘          └─────────┘           └─────────┘
-        │
-   ┌────▼──────────┐
-   │ Redis + Celery│  (traitement asynchrone des fichiers)
-   └───────────────┘
-```
+
+---
+
+## Technologies principales
+
+- Python 3.12
+- Django 4.2
+- Django REST Framework
+- PostgreSQL
+- Redis
+- Celery
+- Chart.js
+- Folium / GeoPandas
+- Docker + docker-compose
 
 ---
 
 ## Services
 
-| Service | Port | Rôle |
+| Service | Port | Description |
 |---|---|---|
-| `service_import` | 8001 | Upload, détection de types, nettoyage, export |
-| `service_analyse` | 8002 | Statistiques descriptives, tests, séries temporelles |
-| `service_visu` | 8003 | Cartes choroplèthes, dashboards, export PDF |
+| `service_import` | 8001 | Ingestion, nettoyage, export de datasets |
+| `service_analyse` | 8002 | Statistiques univariées/bivariées et séries temporelles |
+| `service_visu` | 8003 | Cartes géographiques, dashboards et export PDF |
 
 ---
 
 ## Structure du projet
 
-```
+```text
 censusanalyse/
-├── docker-compose.yml
-├── requirements.txt                  ← dépendances unifiées
+├── docker/
+│   ├── docker-compose.yml
+│   └── docker-compose.prod.yml
+├── requirements.txt
 ├── .env.example
 ├── README.md
-│
-├── service_import/                   ── Dev 1 · Ingestion (port 8001)
-│   ├── config/
-│   │   ├── settings.py
-│   │   ├── urls.py
-│   │   ├── celery.py
-│   │   └── wsgi.py
-│   ├── import_app/
-│   │   ├── models.py                 (Dataset, ColonneInfo, TraitementLog, ExportLog)
-│   │   ├── views.py
-│   │   ├── urls.py
-│   │   ├── serializers.py
-│   │   ├── tasks.py                  (Celery async)
-│   │   └── utils.py
-│   ├── frontend/
-│   │   ├── static/
-│   │   └── templates/
-│   └── manage.py
-│
-├── service_analyse/                  ── Dev 2 · Analyse (port 8002)
-│   ├── config/
-│   │   ├── settings.py
-│   │   └── urls.py
-│   ├── stats_app/                    (Statistiques univariées & bivariées)
-│   │   ├── engines/stats.py
-│   │   ├── selector.py
-│   │   ├── views.py
-│   │   └── urls.py
-│   ├── series_app/                   (Séries temporelles — ARIMA, Prophet)
-│   │   ├── engines/series.py
-│   │   ├── views.py
-│   │   └── urls.py
-│   ├── tests_stat_app/               (Sélecteur de tests statistiques)
-│   │   ├── engines/tests.py
-│   │   ├── selector.py
-│   │   ├── views.py
-│   │   └── urls.py
-│   ├── frontend/
-│   └── manage.py
-│
-├── service_visu/                     ── Dev 3 · Visualisation (port 8003)
-│   ├── config/
-│   │   ├── settings.py
-│   │   └── urls.py
-│   ├── cartes_app/                   (Cartes Folium — choroplèthe, heatmap, points)
-│   │   ├── models.py                 (GeoJSONRegion, CarteGeneree)
-│   │   ├── engines/maps.py
-│   │   ├── management/commands/charger_geojson.py
-│   │   ├── views.py
-│   │   └── urls.py
-│   ├── dashboard_app/                (Constructeur de dashboards)
-│   │   ├── models.py                 (Dashboard, Widget)
-│   │   ├── engines/builder.py
-│   │   ├── engines/export.py         (PDF via ReportLab)
-│   │   ├── views.py
-│   │   └── urls.py
-│   ├── senegal.geojson
-│   ├── senegal_regions.geojson
-│   ├── frontend/
-│   └── manage.py
-│
+├── service_import/
+├── service_analyse/
+├── service_visu/
 └── shared/
-    ├── api_contracts/openapi.yaml    ← contrat OpenAPI inter-services
-    └── mocks/
-        ├── import_mock.py
-        └── analyse_mock.py
 ```
 
 ---
 
-## API Reference
+## Installation rapide
 
-### service_import — `http://localhost:8001/api/v1/`
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `POST` | `/upload/` | Upload CSV / Excel / Stata / SPSS |
-| `GET` | `/datasets/` | Lister tous les datasets |
-| `GET` | `/datasets/<id>/` | Détail d'un dataset |
-| `GET` | `/datasets/<id>/data/` | Données nettoyées (paginées) |
-| `GET` | `/datasets/<id>/colonnes/` | Métadonnées des colonnes |
-| `GET` | `/datasets/<id>/summary/` | Résumé statistique par colonne |
-| `GET` | `/datasets/<id>/export/<format>/` | Export (csv / xlsx / json) |
-| `GET` | `/datasets/<id>/traitements/` | Historique des traitements |
-| `POST` | `/datasets/<id>/rollback/` | Annuler le dernier traitement |
-
-### service_analyse — `http://localhost:8002/api/v1/`
-
-**Statistiques univariées**
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/univariee/` | Stats descriptives |
-| `GET` | `/ic/` | Intervalles de confiance |
-| `GET` | `/normalite/` | Test de normalité (Shapiro-Wilk, K-S) |
-| `GET` | `/histogramme/` | Histogramme |
-| `GET` | `/boxplot/` | Boîte à moustaches |
-| `GET` | `/frequences/` | Distribution de fréquences (catégorielle) |
-
-**Statistiques bivariées**
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/correlation/` | Corrélation Pearson / Spearman |
-| `GET` | `/regression/` | Régression linéaire |
-| `GET` | `/regression-poly/` | Régression polynomiale |
-| `GET` | `/matrice-correlation/` | Matrice de corrélation |
-| `GET` | `/scatter/` | Nuage de points |
-| `GET` | `/contingence/` | Table de contingence |
-| `GET` | `/stats-groupees/` | Stats par groupe |
-| `GET` | `/anova/` | ANOVA one-way |
-| `GET` | `/ttest/` | Test t de Student |
-| `GET` | `/mann-whitney/` | Test de Mann-Whitney U |
-| `GET` | `/kruskal/` | Test de Kruskal-Wallis |
-
-**Tests statistiques**
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `POST` | `/tests/normalite/` | Sélecteur de test de normalité |
-| `POST` | `/tests/comparaison/` | Sélecteur de test de comparaison |
-| `POST` | `/tests/independance/` | Test du Chi² / Fisher exact |
-| `GET` | `/tests/selectionner/` | Outil interactif de sélection |
-
-**Séries temporelles**
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/stationarity/` | Test ADF (Augmented Dickey-Fuller) |
-| `GET` | `/arima/` | Prévision ARIMA |
-| `GET` | `/prophet/` | Prévision Facebook Prophet |
-
-### service_visu — `http://localhost:8003/api/v1/`
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `POST` | `/cartes/choropletre/` | Carte choroplèthe |
-| `POST` | `/cartes/heatmap/` | Carte de chaleur |
-| `POST` | `/cartes/points/` | Carte de points |
-| `POST` | `/cartes/comparaison/` | Comparaison deux variables |
-| `GET` | `/cartes/share/<token>/` | Carte publique partageable |
-| `GET` | `/dashboards/` | Lister les dashboards |
-| `GET` | `/dashboards/<uuid>/` | Détail d'un dashboard |
-| `POST` | `/dashboards/graphique/` | Prévisualiser un graphique |
-| `POST` | `/dashboards/<uuid>/export/pdf/` | Exporter en PDF |
-| `GET` | `/dashboards/share/<token>/` | Dashboard public partageable |
-
----
-
-## Démarrage rapide
-
-### Avec Docker (recommandé)
+### 1. Préparation
 
 ```bash
-# 1. Copier les variables d'environnement
 cp .env.example .env
-
-# 2. Construire et lancer tous les services
-docker-compose up --build
-
-# 3. Accéder aux services
-#    service_import  → http://localhost:8001
-#    service_analyse → http://localhost:8002
-#    service_visu    → http://localhost:8003
 ```
 
-### Sans Docker (développement local)
-
-```bash
-# 1. Créer et activer le venv global
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux / macOS
-
-# 2. Installer les dépendances
-pip install -r requirements.txt
-
-# 3. Copier les variables d'environnement
-cp .env.example .env
-
-# 4. Appliquer les migrations (SQLite en mode dev)
-python service_import/manage.py migrate
-python service_analyse/manage.py migrate
-python service_visu/manage.py migrate
-
-# 5. Lancer les 3 services (3 terminaux)
-python service_import/manage.py runserver 8001
-python service_analyse/manage.py runserver 8002
-python service_visu/manage.py runserver 8003
-```
-
-> En mode dev sans Docker, chaque service utilise **SQLite** automatiquement (aucune configuration PostgreSQL requise).
-
----
-
-## Stack technique
-
-| Catégorie | Technologies |
-|---|---|
-| Backend | Django 4.2+, Django REST Framework |
-| Calcul statistique | Pandas, NumPy, SciPy, Statsmodels, scikit-learn |
-| Séries temporelles | ARIMA (statsmodels), Prophet |
-| Cartographie | Folium, GeoPandas, GeoJSON Sénégal |
-| Visualisation | Chart.js, Plotly |
-| Tâches async | Celery + Redis |
-| Base de données | PostgreSQL (une par service) / SQLite (dev) |
-| Export | ReportLab (PDF), OpenPyXL (Excel) |
-| Conteneurisation | Docker + docker-compose |
+Éditez `.env` et remplacez les secrets, puis mettez `DEBUG=False` pour la production.
 
 ---
 
 ## Variables d'environnement
 
-Copier `.env.example` en `.env` et renseigner les valeurs :
+`.env.example` est un fichier de modèle. Si vous ne disposez pas encore de `.env`, copiez-le puis adaptez les valeurs :
 
 ```env
-SECRET_KEY_IMPORT=...
-SECRET_KEY_ANALYSE=...
-SECRET_KEY_VISU=...
+SECRET_KEY_IMPORT=replace-with-strong-secret
+SECRET_KEY_ANALYSE=replace-with-strong-secret
+SECRET_KEY_VISU=replace-with-strong-secret
 
 DB_USER=postgres
 DB_PASSWORD=postgres
+DB_HOST=postgres
 DB_PORT=5432
 
 REDIS_URL=redis://redis:6379/0
@@ -282,18 +112,175 @@ SERVICE_ANALYSE_URL=http://service_analyse:8002
 SERVICE_VISU_URL=http://service_visu:8003
 
 DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
+### Conseils `.env`
+
+- `SECRET_KEY_*` : utilisez des clés longues et uniques.
+- `DEBUG` : `False` en production.
+- `ALLOWED_HOSTS` : ajoutez les domaines publics de déploiement.
+- `REDIS_URL` : en Docker, le service Redis est accessible via `redis://redis:6379/0`.
+
 ---
 
-## Formats de fichiers supportés
+## Docker
 
-`CSV` · `Excel (.xlsx)` · `Stata (.dta)` · `SPSS (.sav)`
+### Lancer en développement
+
+```bash
+cd docker
+docker-compose up --build -d
+```
+
+### Lancer en production
+
+```bash
+cd docker
+docker-compose -f docker-compose.prod.yml up --build -d
+```
+
+### Notes Docker
+
+- `docker/docker-compose.yml` démarre les trois services et Redis.
+- `docker/docker-compose.prod.yml` ajoute la configuration de production avec `restart: unless-stopped`.
+- Tous les services utilisent `env_file: ../.env` pour charger les variables d’environnement.
+- Dans Docker, chaque service utilise `DB_HOST` pointant vers son propre conteneur PostgreSQL :
+  - `service_import` → `db_import`
+  - `service_analyse` → `db_analyse`
+  - `service_visu` → `db_visu`
+
+### Ports exposés
+
+- `8001` → `service_import`
+- `8002` → `service_analyse`
+- `8003` → `service_visu`
 
 ---
 
-## Auteurs
+## Endpoints principaux
 
-**Papa Magatte Diop**   
-**Fatoumatou BAH**  
-**Ndaosna Armand Djekombe**  
+### service_import
+
+- `POST /api/v1/upload/`
+- `GET /api/v1/datasets/`
+- `GET /api/v1/datasets/<id>/data/`
+- `GET /api/v1/datasets/<id>/export/<format>/`
+
+### service_analyse
+
+- `GET /api/v1/univariee/`
+- `GET /api/v1/correlation/`
+- `GET /api/v1/regression/`
+- `GET /api/v1/prophet/`
+
+### service_visu
+
+- `POST /api/v1/cartes/choropletre/`
+- `GET /api/v1/dashboards/`
+- `POST /api/v1/dashboards/graphique/`
+- `POST /api/v1/dashboards/<uuid>/export/pdf/`
+
+---
+
+### 2. Lancement avec Docker (recommandé)
+
+```bash
+cd docker
+docker-compose up --build -d
+```
+
+### 3. Accès aux services
+
+- `service_import` : http://localhost:8001
+- `service_analyse` : http://localhost:8002
+- `service_visu` : http://localhost:8003
+
+---
+
+## Déploiement production
+
+```bash
+cd docker
+docker-compose -f docker-compose.prod.yml up --build -d
+```
+
+### À vérifier avant le déploiement
+
+- `DEBUG=False`
+- `ALLOWED_HOSTS` avec vos domaines publics
+- `SECRET_KEY_IMPORT`, `SECRET_KEY_ANALYSE`, `SECRET_KEY_VISU` forts
+- `DB_PASSWORD` unique et sécurisé
+
+---
+
+## Exécution locale sans Docker
+
+```bash
+python -m venv venv
+venv\Scripts\activate      # Windows
+# source venv/bin/activate  # Linux / macOS
+pip install -r requirements.txt
+cp .env.example .env
+python service_import/manage.py migrate
+python service_analyse/manage.py migrate
+python service_visu/manage.py migrate
+python service_import/manage.py runserver 8001
+python service_analyse/manage.py runserver 8002
+python service_visu/manage.py runserver 8003
+```
+
+> En mode dev sans Docker, chaque service utilise **SQLite** automatiquement.
+
+---
+
+## API principales
+
+### service_import
+
+- `POST /api/v1/upload/`
+- `GET /api/v1/datasets/`
+- `GET /api/v1/datasets/<id>/data/`
+- `GET /api/v1/datasets/<id>/export/<format>/`
+
+### service_analyse
+
+- `GET /api/v1/univariee/`
+- `GET /api/v1/correlation/`
+- `GET /api/v1/regression/`
+- `GET /api/v1/prophet/`
+
+### service_visu
+
+- `POST /api/v1/cartes/choropletre/`
+- `GET /api/v1/dashboards/`
+- `POST /api/v1/dashboards/graphique/`
+- `POST /api/v1/dashboards/<uuid>/export/pdf/`
+
+---
+
+## Fonctionnalités clés
+
+- Ingestion de fichiers (CSV, Excel, Stata, SPSS)
+- Nettoyage et analyse automatique des colonnes
+- Statistiques descriptives et tests statistiques
+- Séries temporelles ARIMA / Prophet
+- Dashboards interactifs et visualisations Chart.js
+- Cartes choroplèthes et géo-visualisation
+- Export PDF des dashboards
+
+---
+
+## Contribution
+
+1. Forkez le dépôt
+2. Créez une branche : `git checkout -b feature/mon-ajout`
+3. Apportez vos modifications
+4. Committez : `git commit -m "Ajout de ..."`
+5. Poussez et ouvrez une Pull Request
+
+---
+
+## Licence
+
+Ce projet est distribué sous licence MIT.

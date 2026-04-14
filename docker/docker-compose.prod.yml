@@ -1,0 +1,141 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [census_net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_import:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: census_import
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes: [pgdata_import:/var/lib/postgresql/data]
+    networks: [census_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d census_import"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_analyse:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: census_analyse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes: [pgdata_analyse:/var/lib/postgresql/data]
+    networks: [census_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d census_analyse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_visu:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: census_visu
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes: [pgdata_visu:/var/lib/postgresql/data]
+    networks: [census_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d census_visu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_import:
+    build: ./service_import
+    ports: ['8001:8001']
+    env_file: ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: db_import
+      DB_NAME: census_import
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db_import:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [census_net]
+
+  celery_worker:
+    build: ./service_import
+    command: celery -A config.celery worker --loglevel=info --concurrency=2
+    env_file: ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: db_import
+      DB_NAME: census_import
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db_import:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [census_net]
+
+  service_analyse:
+    build: ./service_analyse
+    ports: ['8002:8002']
+    env_file: ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: db_analyse
+      DB_NAME: census_analyse
+      SERVICE_IMPORT_URL: http://service_import:8001
+    depends_on:
+      db_analyse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      service_import:
+        condition: service_started
+    restart: unless-stopped
+    networks: [census_net]
+
+  service_visu:
+    build: ./service_visu
+    ports: ['8003:8003']
+    env_file: ../.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: db_visu
+      DB_NAME: census_visu
+      SERVICE_IMPORT_URL: http://service_import:8001
+      SERVICE_ANALYSE_URL: http://service_analyse:8002
+    depends_on:
+      db_visu:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      service_import:
+        condition: service_started
+      service_analyse:
+        condition: service_started
+    restart: unless-stopped
+    networks: [census_net]
+
+volumes:
+  pgdata_import:
+  pgdata_analyse:
+  pgdata_visu:
+
+networks:
+  census_net:
+    driver: bridge

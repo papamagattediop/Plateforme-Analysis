@@ -121,6 +121,14 @@ async function chargerWidgets() {
       if (!resp.ok) continue;
       const config = await resp.json();
 
+      if (config.erreur) {
+        const div = document.getElementById(`widget-${w.id}`);
+        if (div) {
+          div.innerHTML = `<div style="color:#c2410c;font-size:13px;padding:12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;">Erreur : ${config.erreur}</div>`;
+        }
+        continue;
+      }
+
       if (config.type === 'table') {
         const div = document.getElementById(`widget-${w.id}`);
         if (div) {
@@ -133,6 +141,9 @@ async function chargerWidgets() {
       } else {
         const canvas = document.getElementById(`widget-${w.id}`);
         if (canvas) {
+          if (config.type === 'bar' && config.options?.scales?.x?.ticks?.callback === 'function(value){return Math.abs(value);}') {
+            config.options.scales.x.ticks.callback = value => Math.abs(value);
+          }
           new Chart(canvas, {
             type:    config.type === 'histogram' ? 'bar' : config.type,
             data:    config.data,

@@ -8,7 +8,7 @@ import json
 
 
 # ── Types de graphiques supportés ────────────────────────────
-TYPES_SUPPORTES = ['bar', 'line', 'pie', 'scatter', 'histogram', 'heatmap', 'table']
+TYPES_SUPPORTES = ['bar', 'line', 'pie', 'scatter', 'histogram', 'heatmap', 'pyramid', 'table']
 
 
 def generer_config_graphique(
@@ -52,6 +52,8 @@ def generer_config_graphique(
         return _config_scatter(df, variable_x, variable_y, titre)
     elif type_widget == 'histogram':
         return _config_histogram(df, variable_x, titre)
+    elif type_widget == 'pyramid':
+        return _config_pyramid(df, variable_x, variable_y, titre)
     elif type_widget == 'table':
         return _config_table(df, variable_x, variable_y)
     elif type_widget == 'heatmap':
@@ -258,6 +260,145 @@ def _config_histogram(df, variable_x, titre):
 
 
 # ── Heatmap de corrélation ────────────────────────────────────
+def _config_pyramid(df, variable_x, variable_y, titre):
+    """
+    Génère une pyramide des âges à partir d'une colonne âge et d'une colonne sexe.
+    Variable_x doit être la colonne d'âge et variable_y la colonne de sexe.
+    """
+    if variable_x not in df.columns or variable_y not in df.columns:
+        return {
+            'erreur': (
+                f"Les colonnes '{variable_x}' ou '{variable_y}' sont introuvables. "
+                'Vérifiez que vous avez correctement sélectionné l’âge et le sexe.'
+            )
+        }
+
+    df = df.copy()
+    df[variable_x] = pd.to_numeric(df[variable_x], errors='coerce')
+    df[variable_y] = df[variable_y].astype(str).str.strip()
+
+    df = df.dropna(subset=[variable_x, variable_y])
+    if df.empty:
+        return {
+            'erreur': (
+                'Aucune donnée valide trouvée. Vérifiez que la colonne âge contient des valeurs numériques '
+                'et que la colonne sexe est renseignée.'
+            )
+        }
+
+    df = df[df[variable_x] >= 0]
+    if df.empty:
+        return {
+            'erreur': (
+                'La colonne âge ne contient pas de valeurs valides positives. '
+                'Vérifiez le format de la colonne âge.'
+            )
+        }
+
+    mapping_sexe = {
+        'h': 'Homme', 'homme': 'Homme', 'male': 'Homme', 'm': 'Homme',
+        '0': 'Homme', '1': 'Homme',
+        'f': 'Femme', 'femme': 'Femme', 'female': 'Femme',
+        '2': 'Femme',
+    }
+    df['sex_label'] = df[variable_y].astype(str).str.strip().str.lower().map(mapping_sexe).fillna('Autre')
+
+    groupes = df['sex_label'].unique().tolist()
+    if len(groupes) < 2:
+        return {
+            'erreur': (
+                'La colonne sexe doit contenir au moins deux modalités différentes, ' 
+                'par exemple Homme et Femme. Vérifiez les valeurs de la colonne sexe.'
+            )
+        }
+
+    bins = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 1000]
+    labels = [f'{bins[i]}-{bins[i+1]-1}' if bins[i+1] < 1000 else '85+' for i in range(len(bins)-1)]
+    df['age_bin'] = pd.cut(df[variable_x], bins=bins, labels=labels, right=False)
+    df = df.dropna(subset=['age_bin'])
+
+    if df.empty:
+        return {
+            'erreur': (
+                'Aucune tranche d’âge valide trouvée. Vérifiez le format des données d’âge.'
+            )
+        }
+
+    pivot = (
+        df.groupby(['age_bin', 'sex_label'], observed=True)
+          .size()
+          .reset_index(name='count')
+          .pivot(index='age_bin', columns='sex_label', values='count')
+          .reindex(labels)
+          .fillna(0)
+    )
+
+    # Séparer explicitement Homme et Femme pour une pyramide classique.
+    hommes = pivot.get('Homme', pd.Series(0, index=labels)).astype(int).tolist()
+    femmes = pivot.get('Femme', pd.Series(0, index=labels)).astype(int).tolist()
+    autres = pivot.drop(columns=[col for col in pivot.columns if col in ['Homme', 'Femme']], errors='ignore')
+
+    if autres.shape[1] > 0:
+        return {
+            'erreur': (
+                'La colonne sexe contient des modalités inattendues. Utilisez principalement Homme et Femme ' 
+                'ou nettoyez les données avant de générer la pyramide.'
+            )
+        }
+
+    if sum(hommes) == 0 or sum(femmes) == 0:
+        return {
+            'erreur': (
+                'Les données ne contiennent pas suffisamment de valeurs pour les deux sexes Homme et Femme. '
+                'Vérifiez la colonne sexe.'
+            )
+        }
+
+    valeurs_hommes = [-int(v) for v in hommes]
+    valeurs_femmes = [int(v) for v in femmes]
+    max_val = max(max(abs(v) for v in valeurs_hommes), max(valeurs_femmes), 1)
+    tick_max = int((max_val + 9) // 10 * 10)
+
+    return {
+        'type':  'bar',
+        'titre': titre or 'Pyramide des âges',
+        'data': {
+            'labels': labels,
+            'datasets': [
+                {
+                    'label': 'Homme',
+                    'data': valeurs_hommes,
+                    'backgroundColor': 'rgba(37,99,235,0.8)',
+                },
+                {
+                    'label': 'Femme',
+                    'data': valeurs_femmes,
+                    'backgroundColor': 'rgba(236,72,153,0.8)',
+                },
+            ],
+        },
+        'options': {
+            'indexAxis': 'y',
+            'responsive': True,
+            'maintainAspectRatio': False,
+            'plugins': {
+                'title': {'display': True, 'text': titre or 'Pyramide des âges'},
+                'legend': {'position': 'bottom'},
+            },
+            'scales': {
+                'x': {
+                    'stacked': False,
+                    'ticks': {
+                        'min': -tick_max,
+                        'max': tick_max,
+                        'callback': 'function(value){return Math.abs(value);}'}
+                },
+                'y': {'stacked': False},
+            },
+        },
+    }
+
+
 def _config_heatmap(df, variable_x, variable_y, titre):
     """
     Heatmap de corrélation entre deux variables numériques ou

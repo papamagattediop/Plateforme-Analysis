@@ -149,7 +149,7 @@
           <select id="sel-geo" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type == 'categorical' or col.type == 'text' %}
+              {% if col.type == 'categorical' or col.type == 'text' or col.type == 'inconnu' %}
                 <option value="{{ col.nom }}">{{ col.nom }}</option>
               {% endif %}
             {% endfor %}
@@ -275,7 +275,8 @@
 
 {% block extra_js %}
 <script>
-const DATASET_ID = "{{ dataset_id }}";
+const SERVER_DATASET_ID = "{{ dataset_id }}";
+const DATASET_ID = SERVER_DATASET_ID || getActiveDatasetId();
 const COLONNES   = {{ colonnes|safe }};  {# liste des colonnes avec leurs types #}
 const IMPORT_API = "{{ SERVICE_IMPORT_URL }}/api/v1/";
 let typeCarte = 'choropletre';
@@ -284,9 +285,22 @@ let palette   = 'bleu';
 // ── Initialisation ─────────────────────────────────────────
 (function init() {
   toggle('grp-variable2', false);
+  initialiserDatasetActif();
   chargerAnnees();
   document.getElementById('sel-geo').addEventListener('change', chargerAnnees);
 })();
+
+function initialiserDatasetActif() {
+  if (!DATASET_ID) return;
+
+  const selectsVides =
+    document.getElementById('sel-geo').options.length <= 1 &&
+    document.getElementById('sel-variable').options.length <= 1;
+
+  if (selectsVides) {
+    chargerColonnesDepuisImport(DATASET_ID);
+  }
+}
 
 // ── Détecter et charger les modalités de la colonne date ───
 function chargerAnnees() {
@@ -465,6 +479,42 @@ async function chargerCarte(id) {
     showToast('Erreur : ' + e.message, 'error');
   } finally {
     setLoading('loading-carte', false);
+  }
+}
+
+// Auto-charger les colonnes si dataset_id present mais colonnes vides
+const COLONNES_INIT = {{ colonnes|safe }};
+if (DATASET_ID && COLONNES_INIT.length === 0) {
+  chargerColonnesDepuisImport(DATASET_ID);
+}
+
+async function chargerColonnesDepuisImport(datasetId) {
+  try {
+    const r = await fetch(`${IMPORT_API}datasets/${datasetId}/colonnes/`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const cols = data.data || data || [];
+    
+    const selGeo = document.getElementById('sel-geo');
+    const selVar = document.getElementById('sel-variable');
+    const selVar2 = document.getElementById('sel-variable2');
+    
+    const optGeo = cols
+      .filter(c => c.type === 'categorical' || c.type === 'text' || c.type === 'inconnu')
+      .map(c => `<option value="${c.nom}">${c.nom}</option>`).join('');
+    
+    const optNum = cols
+      .filter(c => c.type === 'numeric')
+      .map(c => `<option value="${c.nom}">${c.nom}</option>`).join('');
+    
+    selGeo.innerHTML = '<option value="">— Choisir —</option>' + optGeo;
+    selVar.innerHTML = '<option value="">— Choisir —</option>' + optNum;
+    selVar2.innerHTML = '<option value="">— Choisir —</option>' + optNum;
+    
+    showToast(`${cols.length} colonnes chargées`, 'success');
+    chargerAnnees();
+  } catch(e) {
+    console.error('Erreur chargement colonnes:', e);
   }
 }
 </script>

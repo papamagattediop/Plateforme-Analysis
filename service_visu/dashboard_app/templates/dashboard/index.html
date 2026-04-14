@@ -75,26 +75,26 @@
 
         <!-- Variable X -->
         <div class="panel-section">
-          <div class="panel-section-label">Variable X</div>
+          <div class="panel-section-label" id="label-x">Variable X</div>
           <select id="sel-x" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
               <option value="{{ col.nom }}" data-type="{{ col.type }}">{{ col.nom }} ({{ col.type }})</option>
             {% endfor %}
           </select>
+          <div class="field-help" id="help-x">Choisissez la variable principale.</div>
         </div>
 
         <!-- Variable Y -->
         <div class="panel-section" id="grp-y">
-          <div class="panel-section-label">Variable Y (optionnel)</div>
+          <div class="panel-section-label" id="label-y">Variable Y (optionnel)</div>
           <select id="sel-y" class="form-control">
             <option value="">— Choisir —</option>
             {% for col in colonnes %}
-              {% if col.type == 'numeric' %}
-                <option value="{{ col.nom }}">{{ col.nom }}</option>
-              {% endif %}
+              <option value="{{ col.nom }}" data-type="{{ col.type }}">{{ col.nom }} ({{ col.type }})</option>
             {% endfor %}
           </select>
+          <div class="field-help" id="help-y">Choisissez la variable secondaire si nécessaire.</div>
         </div>
 
         <!-- Titre -->
@@ -232,13 +232,92 @@ function selectType(btn) {
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   typeWidget = btn.dataset.type;
-  document.getElementById('grp-y').style.display = typeWidget === 'histogram' ? 'none' : '';
+  updateFieldVisibility();
+  refreshColumnHints();
+}
+
+function updateFieldVisibility() {
+  const grpY = document.getElementById('grp-y');
+  const labelX = document.getElementById('label-x');
+  const labelY = document.getElementById('label-y');
+  const helpX = document.getElementById('help-x');
+  const helpY = document.getElementById('help-y');
+
+  if (typeWidget === 'histogram') {
+    grpY.style.display = 'none';
+    labelX.textContent = 'Variable X (âge ou variable numérique)';
+    helpX.textContent = 'Histogramme : seule la variable X est utilisée.';
+    helpY.textContent = '';
+  } else {
+    grpY.style.display = '';
+    if (typeWidget === 'pyramid') {
+      labelX.textContent = 'Variable X (âge numérique)';
+      labelY.textContent = 'Variable Y (sexe)';
+      helpX.textContent = 'Sélectionnez une colonne âge numérique.';
+      helpY.textContent = 'Sélectionnez la colonne contenant le sexe (Homme/Femme).';
+    } else if (typeWidget === 'scatter' || typeWidget === 'line' || typeWidget === 'heatmap') {
+      labelX.textContent = 'Variable X';
+      labelY.textContent = 'Variable Y';
+      helpX.textContent = 'Sélectionnez la colonne X.';
+      helpY.textContent = 'Sélectionnez la colonne Y, nécessaire pour ce type de graphique.';
+    } else {
+      labelX.textContent = 'Variable X';
+      labelY.textContent = 'Variable Y (optionnel)';
+      helpX.textContent = 'Sélectionnez la variable principale.';
+      helpY.textContent = 'Sélectionnez la variable secondaire si nécessaire.';
+    }
+  }
+}
+
+function refreshColumnHints() {
+  const selX = document.getElementById('sel-x');
+  const selY = document.getElementById('sel-y');
+  const xOptions = selX.querySelectorAll('option');
+  const yOptions = selY.querySelectorAll('option');
+
+  xOptions.forEach(opt => {
+    if (!opt.value) return;
+    const type = opt.dataset.type;
+    if (typeWidget === 'pyramid') {
+      opt.disabled = type !== 'numeric';
+    } else {
+      opt.disabled = false;
+    }
+  });
+
+  yOptions.forEach(opt => {
+    if (!opt.value) return;
+    const type = opt.dataset.type;
+    if (typeWidget === 'pyramid') {
+      opt.disabled = false;
+    } else if (typeWidget === 'scatter' || typeWidget === 'line') {
+      opt.disabled = type === 'datetime';
+    } else {
+      opt.disabled = false;
+    }
+  });
+
+  if (typeWidget === 'pyramid') {
+    // Remove any old invalid selection for pyramid
+    if (selX.selectedOptions.length && selX.selectedOptions[0].disabled) selX.value = '';
+    if (selY.selectedOptions.length && selY.selectedOptions[0].disabled) selY.value = '';
+  }
 }
 
 async function previsualiser() {
   if (!DATASET_ID) { showToast('Aucun dataset sélectionné', 'error'); return; }
   const varX = document.getElementById('sel-x').value;
-  if (!varX) { showToast('Choisissez une variable X', 'error'); return; }
+  const varY = document.getElementById('sel-y').value;
+
+  if (!varX) {
+    showToast('Choisissez une variable X', 'error');
+    return;
+  }
+
+  if (typeWidget === 'pyramid' && !varY) {
+    showToast('Pour la pyramide des âges, sélectionnez l\'âge (X) et le sexe (Y)', 'error');
+    return;
+  }
 
   setLoading('loading-preview', true);
 
@@ -246,7 +325,7 @@ async function previsualiser() {
     dataset_id: DATASET_ID,
     type_widget: typeWidget,
     variable_x: varX,
-    variable_y: document.getElementById('sel-y').value || null,
+    variable_y: varY || null,
     titre: document.getElementById('inp-titre').value,
     filtres: _getFiltres(),
   };
@@ -266,6 +345,13 @@ function _afficherPreview(config) {
   const canvas = document.getElementById('preview-chart');
   const tableDiv = document.getElementById('preview-table');
 
+  if (config.erreur) {
+    showToast(config.erreur, 'error');
+    canvas.style.display = 'none';
+    tableDiv.style.display = 'none';
+    return;
+  }
+
   if (config.type === 'table') {
     canvas.style.display = 'none';
     tableDiv.style.display = 'block';
@@ -273,6 +359,10 @@ function _afficherPreview(config) {
     const rows = config.lignes.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
     tableDiv.innerHTML = `<table class="data-table"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><p class="table-note">${config.nb_total} lignes — 50 affichées</p>`;
     return;
+  }
+
+  if (config.type === 'bar' && config.options?.scales?.x?.ticks?.callback === 'function(value){return Math.abs(value);}') {
+    config.options.scales.x.ticks.callback = value => Math.abs(value);
   }
 
   canvas.style.display = 'block';
@@ -287,13 +377,18 @@ function _afficherPreview(config) {
 
 function ajouterWidget() {
   const varX = document.getElementById('sel-x').value;
+  const varY = document.getElementById('sel-y').value;
   if (!varX) { showToast('Prévisualisez d\'abord le graphique', 'error'); return; }
+  if (typeWidget === 'pyramid' && !varY) {
+    showToast('Sélectionnez l\'âge et le sexe avant d\'ajouter la pyramide', 'error');
+    return;
+  }
 
   const widget = {
     type_widget: typeWidget,
     titre: document.getElementById('inp-titre').value || typeWidget,
     variable_x: varX,
-    variable_y: document.getElementById('sel-y').value || '',
+    variable_y: varY || '',
     filtres: _getFiltres(),
     position: widgets.length,
   };
@@ -369,6 +464,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const nom = '{{ dataset.nom_fichier|default:"" }}' || getActiveDatasetNom();
   const chip = document.getElementById('sidebar-ds-name');
   if (chip && nom) chip.textContent = nom;
+  updateFieldVisibility();
+  refreshColumnHints();
 });
 </script>
 {% endblock %}

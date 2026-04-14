@@ -35,7 +35,7 @@ class CarteGeneree(models.Model):
     ]
 
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    dataset_id  = models.UUIDField()
+    dataset_id  = models.CharField(max_length=255)
     dataset_nom = models.CharField(max_length=255)
     type_carte  = models.CharField(max_length=20, choices=TYPE_CHOICES)
     variable    = models.CharField(max_length=255)

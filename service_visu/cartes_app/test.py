@@ -2,6 +2,7 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 from rest_framework import status
 from .models import CarteGeneree, GeoJSONRegion
+from .engines.maps import _normaliser_modalite_geo
 
 
 GEOJSON_SIMPLE = {
@@ -157,3 +158,11 @@ class ChroropletrViewTests(APITestCase):
     def test_choropletre_parametres_manquants(self):
         resp = self.client.post('/api/v1/cartes/choropletre/', {}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ChoroplethNormalizationTests(APITestCase):
+
+    def test_normalisation_region_accepte_accents_et_texte_mal_encode(self):
+        self.assertEqual(_normaliser_modalite_geo('Thies'), 'thies')
+        self.assertEqual(_normaliser_modalite_geo('Thiès'), 'thies')
+        self.assertEqual(_normaliser_modalite_geo('ThiÃ¨s'), 'thies')
