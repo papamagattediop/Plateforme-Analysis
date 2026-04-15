@@ -1,5 +1,6 @@
 ﻿import os
 from pathlib import Path
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -51,7 +52,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 import sys
-if 'test' in sys.argv or not os.environ.get('DB_HOST'):
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+elif 'test' in sys.argv or not os.environ.get('DB_HOST'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
