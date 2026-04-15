@@ -10,6 +10,15 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
+
+def normalize_service_url(value, default):
+    if not value:
+        return default
+    value = value.strip()
+    if value.startswith('http://') or value.startswith('https://'):
+        return value
+    return f'https://{value}'
+
 INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.staticfiles',
@@ -101,16 +110,18 @@ MEDIA_URL   = '/media/'
 MEDIA_ROOT  = BASE_DIR / 'media'
 
 # URLs inter-services
-SERVICE_IMPORT_URL  = os.environ.get('SERVICE_IMPORT_URL')
-SERVICE_ANALYSE_URL = os.environ.get('SERVICE_ANALYSE_URL')
-SERVICE_VISU_URL    = os.environ.get('SERVICE_VISU_URL')
-
-if not SERVICE_IMPORT_URL:
-    SERVICE_IMPORT_URL = 'http://localhost:8001' if DEBUG else 'https://services-import-production.up.railway.app'
-if not SERVICE_ANALYSE_URL:
-    SERVICE_ANALYSE_URL = 'http://localhost:8002' if DEBUG else 'https://plateforme-analysis-production.up.railway.app'
-if not SERVICE_VISU_URL:
-    SERVICE_VISU_URL = 'http://localhost:8003' if DEBUG else 'https://plateforme-visu-production.up.railway.app'
+SERVICE_IMPORT_URL = normalize_service_url(
+    os.environ.get('SERVICE_IMPORT_URL'),
+    'http://localhost:8001' if DEBUG else 'https://services-import-production.up.railway.app'
+)
+SERVICE_ANALYSE_URL = normalize_service_url(
+    os.environ.get('SERVICE_ANALYSE_URL'),
+    'http://localhost:8002' if DEBUG else 'https://plateforme-analysis-production.up.railway.app'
+)
+SERVICE_VISU_URL = normalize_service_url(
+    os.environ.get('SERVICE_VISU_URL'),
+    'http://localhost:8003' if DEBUG else 'https://plateforme-visu-production.up.railway.app'
+)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
