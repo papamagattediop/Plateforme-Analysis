@@ -33,7 +33,9 @@ services:
       retries: 5
 
   service_import:
-    build: ./service_import
+    build:
+      context: ..
+      dockerfile: service_import/Dockerfile
     ports: ['8001:8001']
     env_file: ../.env
     environment:
@@ -50,7 +52,9 @@ services:
     networks: [census_net]
 
   celery_worker:
-    build: ./service_import
+    build:
+      context: ..
+      dockerfile: service_import/Dockerfile
     command: celery -A config.celery worker --loglevel=info --concurrency=2
     env_file: ../.env
     environment:
@@ -84,7 +88,9 @@ services:
       retries: 5
 
   service_analyse:
-    build: ./service_analyse
+    build:
+      context: ..
+      dockerfile: service_analyse/Dockerfile
     ports: ['8002:8002']
     env_file: ../.env
     environment:
@@ -120,7 +126,9 @@ services:
       retries: 5
 
   service_visu:
-    build: ./service_visu
+    build:
+      context: ..
+      dockerfile: service_visu/Dockerfile
     ports: ['8003:8003']
     env_file: ../.env
     environment:

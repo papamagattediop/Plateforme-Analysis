@@ -28,8 +28,8 @@ COPY requirements.txt .
 # 6. Installer les dépendances Python listées dans requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. Copier tout le code source du projet dans le conteneur
-COPY . .
+# 7. Copier le code source du service Import dans le conteneur
+COPY service_import .
 
 # 8. Créer un dossier pour stocker les fichiers uploadés (media)
 RUN mkdir -p /app/media/uploads

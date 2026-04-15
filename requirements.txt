@@ -33,6 +33,9 @@ requests
 
 # ─── Serveur production ─────────────────────────────────────────────
 gunicorn
+whitenoise
+psycopg[binary,pool]
+dj-database-url
 
 # ─── Tests ──────────────────────────────────────────────────────────
 pytest
