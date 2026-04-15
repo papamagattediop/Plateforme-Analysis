@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -62,14 +63,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # SQLite en local (tests / dev sans Docker), PostgreSQL sinon
-if 'test' in sys.argv or not os.environ.get('DB_HOST'):
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if 'test' in sys.argv:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME':   BASE_DIR / 'db_local.sqlite3',
         }
     }
-else:
+elif DATABASE_URL:
+    db = urlparse(DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db.path[1:],
+            'USER': db.username,
+            'PASSWORD': db.password,
+            'HOST': db.hostname,
+            'PORT': db.port or 5432,
+        }
+    }
+elif os.environ.get('DB_HOST'):
     DATABASES = {
         'default': {
             'ENGINE':   'django.db.backends.postgresql',
@@ -78,6 +92,13 @@ else:
             'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
             'HOST':     os.environ.get('DB_HOST',     'localhost'),
             'PORT':     os.environ.get('DB_PORT',     '5432'),
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME':   BASE_DIR / 'db_local.sqlite3',
         }
     }
 
@@ -97,7 +118,9 @@ STATIC_URL  = '/static/'
 MEDIA_URL   = '/media/'
 MEDIA_ROOT  = BASE_DIR / 'media'
 
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'frontend' / 'static']
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

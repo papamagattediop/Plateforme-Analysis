@@ -8,7 +8,20 @@ import pandas as pd
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 DEFAULT_SERVICE_IMPORT_URL = 'http://localhost:8001' if DEBUG else 'https://services-import-production.up.railway.app'
-SERVICE_IMPORT_URL = os.environ.get('SERVICE_IMPORT_URL', DEFAULT_SERVICE_IMPORT_URL)
+
+
+def normalize_service_url(value, default):
+    if not value:
+        return default
+    value = value.strip()
+    if value.startswith('http://') or value.startswith('https://'):
+        return value
+    return f'https://{value}'
+
+SERVICE_IMPORT_URL = normalize_service_url(
+    os.environ.get('SERVICE_IMPORT_URL'),
+    DEFAULT_SERVICE_IMPORT_URL,
+)
 TIMEOUT = 15
 
 
