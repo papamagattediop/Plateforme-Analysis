@@ -9,13 +9,11 @@ RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 COPY --chown=appuser:appuser requirements.txt .
-
-USER appuser
-
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=appuser:appuser . .
+USER appuser
 
 EXPOSE 8002
 
