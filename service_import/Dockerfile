@@ -29,7 +29,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 7. Copier le code source du service Import dans le conteneur
-COPY service_import .
+COPY . .
 
 # 8. Créer un dossier pour stocker les fichiers uploadés (media)
 RUN mkdir -p /app/media/uploads
@@ -40,4 +40,4 @@ EXPOSE 8001
 # 10. Commande de démarrage
 # - migrate : crée les tables si elles n'existent pas encore
 # - gunicorn : serveur WSGI production (2 workers)
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --no-input && gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --no-input && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8001} --workers 2 --timeout 120"]
