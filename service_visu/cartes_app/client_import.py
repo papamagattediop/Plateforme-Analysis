@@ -6,7 +6,9 @@ import os
 import requests
 import pandas as pd
 
-SERVICE_IMPORT_URL = os.environ.get('SERVICE_IMPORT_URL', 'http://localhost:8001')
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEFAULT_SERVICE_IMPORT_URL = 'http://localhost:8001' if DEBUG else 'https://services-import-production.up.railway.app'
+SERVICE_IMPORT_URL = os.environ.get('SERVICE_IMPORT_URL', DEFAULT_SERVICE_IMPORT_URL)
 TIMEOUT = 15
 
 

@@ -130,6 +130,13 @@ USE_TZ        = True
 # ─── URLs inter-services ───────────────────────────────────────────
 # Sur Railway, utilise les URLs publiques des autres services
 # (ou les domaines privés Railway si tu actives le réseau privé)
-SERVICE_IMPORT_URL  = os.environ.get('SERVICE_IMPORT_URL',  'http://localhost:8001')
-SERVICE_ANALYSE_URL = os.environ.get('SERVICE_ANALYSE_URL', 'http://localhost:8002')
-SERVICE_VISU_URL    = os.environ.get('SERVICE_VISU_URL',    'http://localhost:8003')
+SERVICE_IMPORT_URL  = os.environ.get('SERVICE_IMPORT_URL')
+SERVICE_ANALYSE_URL = os.environ.get('SERVICE_ANALYSE_URL')
+SERVICE_VISU_URL    = os.environ.get('SERVICE_VISU_URL')
+
+if not SERVICE_IMPORT_URL:
+    SERVICE_IMPORT_URL = 'http://localhost:8001' if DEBUG else 'https://services-import-production.up.railway.app'
+if not SERVICE_ANALYSE_URL:
+    SERVICE_ANALYSE_URL = 'http://localhost:8002' if DEBUG else 'https://plateforme-analysis-production.up.railway.app'
+if not SERVICE_VISU_URL:
+    SERVICE_VISU_URL = 'http://localhost:8003' if DEBUG else 'https://plateforme-visu-production.up.railway.app'
